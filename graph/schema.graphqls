@@ -1,0 +1,117 @@
+# GraphQL schema example
+#
+# https://gqlgen.com/getting-started/
+
+
+type Query {
+  tenants(id: ID): [Tenant!]!
+  users(id: ID): [User!]!
+  # containerTypes: [ContainerType!]!
+  # containers: [Container!]!
+  # componentTypes: [ComponentType!]!
+  # components: [Component!]!
+}
+
+type Mutation {
+  createTenant(input: NewTenant!): Tenant!
+  createUser(input: NewUser!): User!
+  # createContainerType(input: NewContainerType!): ContainerType!
+  # createContainer(input: NewContainer!): Container!
+  # createComponentType(input: NewComponentType!): ComponentType!
+  # createComponent(input: NewComponent!): Component!
+  # createQuantity(input: NewQuantity!): Quantity!
+}
+
+type Tenant {
+  id: ID!
+  createdAt: String!
+  name: String!
+  users: [User!]
+}
+
+input NewTenant {
+  id: ID
+  name: String!
+}
+
+type User {
+  id: ID!
+  tenant: Tenant!
+  createdAt: String!
+  name: String!
+}
+
+input NewUser {
+  id: ID
+  tenantId: ID!
+  name: String!
+}
+
+# type ContainerType {
+#   id: ID!
+#   tenant: Tenant!
+#   createdAt: String!
+#   description: String!
+#   containers: [Container!]
+# }
+
+# input NewContainerType{
+#   tenant: ID!
+#   description: String!
+# }
+
+# type Container {
+#   id: ID!
+#   tenant: Tenant!
+#   createdAt: String!
+#   containerType: ContainerType!
+#   description: String!
+#   components: [Component!]
+# }
+
+# input NewContainer {
+#   tenant: ID!
+#   containerType: ID!
+#   description: String!
+# }
+
+# type ComponentType {
+#   id: ID!
+#   tenant: Tenant!
+#   createdAt: String!
+#   description: String!
+#   components: [Component!]
+# }
+
+# input NewComponentType {
+#   tenant: ID!
+#   description: String!
+# }
+
+# type Component {
+#   id: ID!
+#   tenant: Tenant!
+#   createdAt: String!
+#   componentType: ComponentType!
+#   description: String!
+#   containers: [Container!]
+# }
+
+# input NewComponent {
+#   tenant: ID!
+#   componentType: ID!
+#   description: String!
+# }
+
+# type Quantity {
+#   id: ID!
+#   container: Container!
+#   component: Component!
+#   quantity: Int!
+# }
+
+# input NewQuantity {
+#   container: ID!
+#   component: ID!
+#   quantity: Int!
+# }

@@ -1,5 +1,5 @@
 
-DROP TABLE IF EXISTS container_component;
+DROP TABLE IF EXISTS quantity;
 DROP TABLE IF EXISTS component;
 DROP TABLE IF EXISTS component_type;
 DROP TABLE IF EXISTS container;

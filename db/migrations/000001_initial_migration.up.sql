@@ -66,15 +66,16 @@ CREATE TABLE component (
 CREATE INDEX component_tenant_id_idx ON component (tenant_id);
 CREATE INDEX component_component_type_id_idx ON component (component_type_id);
 
-CREATE TABLE container_component (
+CREATE TABLE quantity (
+  quantity_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   container_id uuid NOT NULL REFERENCES container (container_id),
   component_id uuid NOT NULL REFERENCES component (component_id),
   quantity int NOT NULL default 0 CHECK (quantity >= 0),
-  PRIMARY KEY (container_id, component_id)
+  UNIQUE (container_id, component_id)
 );
 
-CREATE INDEX container_component_container_id ON container_component (container_id);
-CREATE INDEX container_component_component_id ON container_component (component_id);
+CREATE INDEX quantity_container_id ON quantity (container_id);
+CREATE INDEX quantity_component_id ON quantity (component_id);
 
 
 
