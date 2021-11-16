@@ -36,9 +36,12 @@ type Config struct {
 }
 
 type ResolverRoot interface {
+	Component() ComponentResolver
 	ComponentType() ComponentTypeResolver
+	Container() ContainerResolver
 	ContainerType() ContainerTypeResolver
 	Mutation() MutationResolver
+	Quantity() QuantityResolver
 	Query() QueryResolver
 	Tenant() TenantResolver
 	User() UserResolver
@@ -48,14 +51,36 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	Component struct {
+		ComponentType func(childComplexity int) int
+		CreatedAt     func(childComplexity int) int
+		Description   func(childComplexity int) int
+		ID            func(childComplexity int) int
+		Quantities    func(childComplexity int) int
+		Tenant        func(childComplexity int) int
+	}
+
 	ComponentType struct {
+		Components  func(childComplexity int) int
 		CreatedAt   func(childComplexity int) int
 		Description func(childComplexity int) int
 		ID          func(childComplexity int) int
 		Tenant      func(childComplexity int) int
 	}
 
+	Container struct {
+		Children      func(childComplexity int) int
+		ContainerType func(childComplexity int) int
+		CreatedAt     func(childComplexity int) int
+		Description   func(childComplexity int) int
+		ID            func(childComplexity int) int
+		Parent        func(childComplexity int) int
+		Quantities    func(childComplexity int) int
+		Tenant        func(childComplexity int) int
+	}
+
 	ContainerType struct {
+		Containers  func(childComplexity int) int
 		CreatedAt   func(childComplexity int) int
 		Description func(childComplexity int) int
 		ID          func(childComplexity int) int
@@ -63,15 +88,28 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		CreateComponentType func(childComplexity int, input model.NewComponentType) int
-		CreateContainerType func(childComplexity int, input model.NewContainerType) int
-		CreateTenant        func(childComplexity int, input model.NewTenant) int
-		CreateUser          func(childComplexity int, input model.NewUser) int
+		UpsertComponent     func(childComplexity int, input model.NewComponent) int
+		UpsertComponentType func(childComplexity int, input model.NewComponentType) int
+		UpsertContainer     func(childComplexity int, input model.NewContainer) int
+		UpsertContainerType func(childComplexity int, input model.NewContainerType) int
+		UpsertQuantity      func(childComplexity int, input model.NewQuantity) int
+		UpsertTenant        func(childComplexity int, input model.NewTenant) int
+		UpsertUser          func(childComplexity int, input model.NewUser) int
+	}
+
+	Quantity struct {
+		Component func(childComplexity int) int
+		Container func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Quantity  func(childComplexity int) int
 	}
 
 	Query struct {
 		ComponentTypes func(childComplexity int, id *string) int
+		Components     func(childComplexity int, id *string) int
 		ContainerTypes func(childComplexity int, id *string) int
+		Containers     func(childComplexity int, id *string) int
+		Quantities     func(childComplexity int, id *string) int
 		Tenants        func(childComplexity int, id *string) int
 		Users          func(childComplexity int, id *string) int
 	}
@@ -93,23 +131,52 @@ type ComplexityRoot struct {
 	}
 }
 
+type ComponentResolver interface {
+	Tenant(ctx context.Context, obj *model.Component) (*model.Tenant, error)
+
+	ComponentType(ctx context.Context, obj *model.Component) (*model.ComponentType, error)
+
+	Quantities(ctx context.Context, obj *model.Component) ([]*model.Quantity, error)
+}
 type ComponentTypeResolver interface {
 	Tenant(ctx context.Context, obj *model.ComponentType) (*model.Tenant, error)
+
+	Components(ctx context.Context, obj *model.ComponentType) ([]*model.Component, error)
+}
+type ContainerResolver interface {
+	Tenant(ctx context.Context, obj *model.Container) (*model.Tenant, error)
+	Parent(ctx context.Context, obj *model.Container) (*model.Container, error)
+	ContainerType(ctx context.Context, obj *model.Container) (*model.ContainerType, error)
+
+	Children(ctx context.Context, obj *model.Container) ([]*model.Container, error)
+	Quantities(ctx context.Context, obj *model.Container) ([]*model.Quantity, error)
 }
 type ContainerTypeResolver interface {
 	Tenant(ctx context.Context, obj *model.ContainerType) (*model.Tenant, error)
+
+	Containers(ctx context.Context, obj *model.ContainerType) ([]*model.Container, error)
 }
 type MutationResolver interface {
-	CreateTenant(ctx context.Context, input model.NewTenant) (*model.Tenant, error)
-	CreateUser(ctx context.Context, input model.NewUser) (*model.User, error)
-	CreateContainerType(ctx context.Context, input model.NewContainerType) (*model.ContainerType, error)
-	CreateComponentType(ctx context.Context, input model.NewComponentType) (*model.ComponentType, error)
+	UpsertTenant(ctx context.Context, input model.NewTenant) (*model.Tenant, error)
+	UpsertUser(ctx context.Context, input model.NewUser) (*model.User, error)
+	UpsertContainerType(ctx context.Context, input model.NewContainerType) (*model.ContainerType, error)
+	UpsertComponentType(ctx context.Context, input model.NewComponentType) (*model.ComponentType, error)
+	UpsertContainer(ctx context.Context, input model.NewContainer) (*model.Container, error)
+	UpsertComponent(ctx context.Context, input model.NewComponent) (*model.Component, error)
+	UpsertQuantity(ctx context.Context, input model.NewQuantity) (*model.Quantity, error)
+}
+type QuantityResolver interface {
+	Container(ctx context.Context, obj *model.Quantity) (*model.Container, error)
+	Component(ctx context.Context, obj *model.Quantity) (*model.Component, error)
 }
 type QueryResolver interface {
 	Tenants(ctx context.Context, id *string) ([]*model.Tenant, error)
 	Users(ctx context.Context, id *string) ([]*model.User, error)
 	ContainerTypes(ctx context.Context, id *string) ([]*model.ContainerType, error)
 	ComponentTypes(ctx context.Context, id *string) ([]*model.ComponentType, error)
+	Containers(ctx context.Context, id *string) ([]*model.Container, error)
+	Components(ctx context.Context, id *string) ([]*model.Component, error)
+	Quantities(ctx context.Context, id *string) ([]*model.Quantity, error)
 }
 type TenantResolver interface {
 	Users(ctx context.Context, obj *model.Tenant) ([]*model.User, error)
@@ -134,6 +201,55 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "Component.componentType":
+		if e.complexity.Component.ComponentType == nil {
+			break
+		}
+
+		return e.complexity.Component.ComponentType(childComplexity), true
+
+	case "Component.createdAt":
+		if e.complexity.Component.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.Component.CreatedAt(childComplexity), true
+
+	case "Component.description":
+		if e.complexity.Component.Description == nil {
+			break
+		}
+
+		return e.complexity.Component.Description(childComplexity), true
+
+	case "Component.id":
+		if e.complexity.Component.ID == nil {
+			break
+		}
+
+		return e.complexity.Component.ID(childComplexity), true
+
+	case "Component.quantities":
+		if e.complexity.Component.Quantities == nil {
+			break
+		}
+
+		return e.complexity.Component.Quantities(childComplexity), true
+
+	case "Component.tenant":
+		if e.complexity.Component.Tenant == nil {
+			break
+		}
+
+		return e.complexity.Component.Tenant(childComplexity), true
+
+	case "ComponentType.components":
+		if e.complexity.ComponentType.Components == nil {
+			break
+		}
+
+		return e.complexity.ComponentType.Components(childComplexity), true
 
 	case "ComponentType.createdAt":
 		if e.complexity.ComponentType.CreatedAt == nil {
@@ -163,6 +279,69 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.ComponentType.Tenant(childComplexity), true
 
+	case "Container.children":
+		if e.complexity.Container.Children == nil {
+			break
+		}
+
+		return e.complexity.Container.Children(childComplexity), true
+
+	case "Container.containerType":
+		if e.complexity.Container.ContainerType == nil {
+			break
+		}
+
+		return e.complexity.Container.ContainerType(childComplexity), true
+
+	case "Container.createdAt":
+		if e.complexity.Container.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.Container.CreatedAt(childComplexity), true
+
+	case "Container.description":
+		if e.complexity.Container.Description == nil {
+			break
+		}
+
+		return e.complexity.Container.Description(childComplexity), true
+
+	case "Container.id":
+		if e.complexity.Container.ID == nil {
+			break
+		}
+
+		return e.complexity.Container.ID(childComplexity), true
+
+	case "Container.parent":
+		if e.complexity.Container.Parent == nil {
+			break
+		}
+
+		return e.complexity.Container.Parent(childComplexity), true
+
+	case "Container.quantities":
+		if e.complexity.Container.Quantities == nil {
+			break
+		}
+
+		return e.complexity.Container.Quantities(childComplexity), true
+
+	case "Container.tenant":
+		if e.complexity.Container.Tenant == nil {
+			break
+		}
+
+		return e.complexity.Container.Tenant(childComplexity), true
+
+	case "ContainerType.containers":
+		if e.complexity.ContainerType.Containers == nil {
+			break
+		}
+
+		return e.complexity.ContainerType.Containers(childComplexity), true
+
 	case "ContainerType.createdAt":
 		if e.complexity.ContainerType.CreatedAt == nil {
 			break
@@ -191,53 +370,117 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.ContainerType.Tenant(childComplexity), true
 
-	case "Mutation.createComponentType":
-		if e.complexity.Mutation.CreateComponentType == nil {
+	case "Mutation.upsertComponent":
+		if e.complexity.Mutation.UpsertComponent == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_createComponentType_args(context.TODO(), rawArgs)
+		args, err := ec.field_Mutation_upsertComponent_args(context.TODO(), rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateComponentType(childComplexity, args["input"].(model.NewComponentType)), true
+		return e.complexity.Mutation.UpsertComponent(childComplexity, args["input"].(model.NewComponent)), true
 
-	case "Mutation.createContainerType":
-		if e.complexity.Mutation.CreateContainerType == nil {
+	case "Mutation.upsertComponentType":
+		if e.complexity.Mutation.UpsertComponentType == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_createContainerType_args(context.TODO(), rawArgs)
+		args, err := ec.field_Mutation_upsertComponentType_args(context.TODO(), rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateContainerType(childComplexity, args["input"].(model.NewContainerType)), true
+		return e.complexity.Mutation.UpsertComponentType(childComplexity, args["input"].(model.NewComponentType)), true
 
-	case "Mutation.createTenant":
-		if e.complexity.Mutation.CreateTenant == nil {
+	case "Mutation.upsertContainer":
+		if e.complexity.Mutation.UpsertContainer == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_createTenant_args(context.TODO(), rawArgs)
+		args, err := ec.field_Mutation_upsertContainer_args(context.TODO(), rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateTenant(childComplexity, args["input"].(model.NewTenant)), true
+		return e.complexity.Mutation.UpsertContainer(childComplexity, args["input"].(model.NewContainer)), true
 
-	case "Mutation.createUser":
-		if e.complexity.Mutation.CreateUser == nil {
+	case "Mutation.upsertContainerType":
+		if e.complexity.Mutation.UpsertContainerType == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_createUser_args(context.TODO(), rawArgs)
+		args, err := ec.field_Mutation_upsertContainerType_args(context.TODO(), rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateUser(childComplexity, args["input"].(model.NewUser)), true
+		return e.complexity.Mutation.UpsertContainerType(childComplexity, args["input"].(model.NewContainerType)), true
+
+	case "Mutation.upsertQuantity":
+		if e.complexity.Mutation.UpsertQuantity == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_upsertQuantity_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpsertQuantity(childComplexity, args["input"].(model.NewQuantity)), true
+
+	case "Mutation.upsertTenant":
+		if e.complexity.Mutation.UpsertTenant == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_upsertTenant_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpsertTenant(childComplexity, args["input"].(model.NewTenant)), true
+
+	case "Mutation.upsertUser":
+		if e.complexity.Mutation.UpsertUser == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_upsertUser_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpsertUser(childComplexity, args["input"].(model.NewUser)), true
+
+	case "Quantity.component":
+		if e.complexity.Quantity.Component == nil {
+			break
+		}
+
+		return e.complexity.Quantity.Component(childComplexity), true
+
+	case "Quantity.container":
+		if e.complexity.Quantity.Container == nil {
+			break
+		}
+
+		return e.complexity.Quantity.Container(childComplexity), true
+
+	case "Quantity.id":
+		if e.complexity.Quantity.ID == nil {
+			break
+		}
+
+		return e.complexity.Quantity.ID(childComplexity), true
+
+	case "Quantity.quantity":
+		if e.complexity.Quantity.Quantity == nil {
+			break
+		}
+
+		return e.complexity.Quantity.Quantity(childComplexity), true
 
 	case "Query.componentTypes":
 		if e.complexity.Query.ComponentTypes == nil {
@@ -251,6 +494,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.ComponentTypes(childComplexity, args["id"].(*string)), true
 
+	case "Query.components":
+		if e.complexity.Query.Components == nil {
+			break
+		}
+
+		args, err := ec.field_Query_components_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Components(childComplexity, args["id"].(*string)), true
+
 	case "Query.containerTypes":
 		if e.complexity.Query.ContainerTypes == nil {
 			break
@@ -262,6 +517,30 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.ContainerTypes(childComplexity, args["id"].(*string)), true
+
+	case "Query.containers":
+		if e.complexity.Query.Containers == nil {
+			break
+		}
+
+		args, err := ec.field_Query_containers_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Containers(childComplexity, args["id"].(*string)), true
+
+	case "Query.quantities":
+		if e.complexity.Query.Quantities == nil {
+			break
+		}
+
+		args, err := ec.field_Query_quantities_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Quantities(childComplexity, args["id"].(*string)), true
 
 	case "Query.tenants":
 		if e.complexity.Query.Tenants == nil {
@@ -431,19 +710,20 @@ type Query {
   tenants(id: ID): [Tenant!]!
   users(id: ID): [User!]!
   containerTypes(id: ID): [ContainerType!]!
-  # containers: [Container!]!
   componentTypes(id: ID): [ComponentType!]!
-  # components: [Component!]!
+  containers(id: ID): [Container!]!
+  components(id: ID): [Component!]!
+  quantities(id: ID): [Quantity!]!
 }
 
 type Mutation {
-  createTenant(input: NewTenant!): Tenant!
-  createUser(input: NewUser!): User!
-  createContainerType(input: NewContainerType!): ContainerType!
-  # createContainer(input: NewContainer!): Container!
-  createComponentType(input: NewComponentType!): ComponentType!
-  # createComponent(input: NewComponent!): Component!
-  # createQuantity(input: NewQuantity!): Quantity!
+  upsertTenant(input: NewTenant!): Tenant!
+  upsertUser(input: NewUser!): User!
+  upsertContainerType(input: NewContainerType!): ContainerType!
+  upsertComponentType(input: NewComponentType!): ComponentType!
+  upsertContainer(input: NewContainer!): Container!
+  upsertComponent(input: NewComponent!): Component!
+  upsertQuantity(input: NewQuantity!): Quantity!
 }
 
 type Tenant {
@@ -478,7 +758,7 @@ type ContainerType {
   tenant: Tenant!
   createdAt: Time!
   description: String!
-  # containers: [Container!]
+  containers: [Container!]
 }
 
 input NewContainerType{
@@ -487,27 +767,31 @@ input NewContainerType{
   description: String!
 }
 
-# type Container {
-#   id: ID!
-#   tenant: Tenant!
-#   createdAt: Time!
-#   containerType: ContainerType!
-#   description: String!
-#   components: [Component!]
-# }
+type Container {
+  id: ID!
+  tenant: Tenant!
+  parent: Container
+  containerType: ContainerType!
+  createdAt: Time!
+  description: String!
+  children: [Container!]
+  quantities: [Quantity!]
+}
 
-# input NewContainer {
-#   tenant: ID!
-#   containerType: ID!
-#   description: String!
-# }
+input NewContainer {
+  id: ID
+  tenantId: ID!
+  parentId: ID
+  containerTypeId: ID!
+  description: String!
+}
 
 type ComponentType {
   id: ID!
   tenant: Tenant!
   createdAt: Time!
   description: String!
-#  components: [Component!]
+  components: [Component!]
 }
 
 input NewComponentType {
@@ -516,33 +800,35 @@ input NewComponentType {
   description: String!
 }
 
-# type Component {
-#   id: ID!
-#   tenant: Tenant!
-#   createdAt: Time!
-#   componentType: ComponentType!
-#   description: String!
-#   containers: [Container!]
-# }
+type Component {
+  id: ID!
+  tenant: Tenant!
+  createdAt: Time!
+  componentType: ComponentType!
+  description: String!
+  quantities: [Quantity!]
+}
 
-# input NewComponent {
-#   tenant: ID!
-#   componentType: ID!
-#   description: String!
-# }
+input NewComponent {
+  id: ID
+  tenantId: ID!
+  componentTypeId: ID!
+  description: String!
+}
 
-# type Quantity {
-#   id: ID!
-#   container: Container!
-#   component: Component!
-#   quantity: Int!
-# }
+type Quantity {
+  id: ID!
+  container: Container!
+  component: Component!
+  quantity: Int!
+}
 
-# input NewQuantity {
-#   container: ID!
-#   component: ID!
-#   quantity: Int!
-# }`, BuiltIn: false},
+input NewQuantity {
+  id: ID
+  containerId: ID!
+  componentId: ID!
+  quantity: Int!
+}`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -550,7 +836,7 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
 // region    ***************************** args.gotpl *****************************
 
-func (ec *executionContext) field_Mutation_createComponentType_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Mutation_upsertComponentType_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 model.NewComponentType
@@ -565,7 +851,22 @@ func (ec *executionContext) field_Mutation_createComponentType_args(ctx context.
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_createContainerType_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Mutation_upsertComponent_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.NewComponent
+	if tmp, ok := rawArgs["input"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+		arg0, err = ec.unmarshalNNewComponent2partsᚋgraphᚋmodelᚐNewComponent(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_upsertContainerType_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 model.NewContainerType
@@ -580,7 +881,37 @@ func (ec *executionContext) field_Mutation_createContainerType_args(ctx context.
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_createTenant_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Mutation_upsertContainer_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.NewContainer
+	if tmp, ok := rawArgs["input"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+		arg0, err = ec.unmarshalNNewContainer2partsᚋgraphᚋmodelᚐNewContainer(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_upsertQuantity_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.NewQuantity
+	if tmp, ok := rawArgs["input"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+		arg0, err = ec.unmarshalNNewQuantity2partsᚋgraphᚋmodelᚐNewQuantity(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_upsertTenant_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 model.NewTenant
@@ -595,7 +926,7 @@ func (ec *executionContext) field_Mutation_createTenant_args(ctx context.Context
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_createUser_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Mutation_upsertUser_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 model.NewUser
@@ -640,7 +971,52 @@ func (ec *executionContext) field_Query_componentTypes_args(ctx context.Context,
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_components_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalOID2ᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_containerTypes_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalOID2ᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_containers_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalOID2ᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_quantities_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 *string
@@ -722,6 +1098,213 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _Component_id(ctx context.Context, field graphql.CollectedField, obj *model.Component) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Component",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Component_tenant(ctx context.Context, field graphql.CollectedField, obj *model.Component) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Component",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Component().Tenant(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Tenant)
+	fc.Result = res
+	return ec.marshalNTenant2ᚖpartsᚋgraphᚋmodelᚐTenant(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Component_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Component) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Component",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Component_componentType(ctx context.Context, field graphql.CollectedField, obj *model.Component) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Component",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Component().ComponentType(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.ComponentType)
+	fc.Result = res
+	return ec.marshalNComponentType2ᚖpartsᚋgraphᚋmodelᚐComponentType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Component_description(ctx context.Context, field graphql.CollectedField, obj *model.Component) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Component",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Description, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Component_quantities(ctx context.Context, field graphql.CollectedField, obj *model.Component) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Component",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Component().Quantities(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Quantity)
+	fc.Result = res
+	return ec.marshalOQuantity2ᚕᚖpartsᚋgraphᚋmodelᚐQuantityᚄ(ctx, field.Selections, res)
+}
 
 func (ec *executionContext) _ComponentType_id(ctx context.Context, field graphql.CollectedField, obj *model.ComponentType) (ret graphql.Marshaler) {
 	defer func() {
@@ -861,6 +1444,309 @@ func (ec *executionContext) _ComponentType_description(ctx context.Context, fiel
 	res := resTmp.(string)
 	fc.Result = res
 	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ComponentType_components(ctx context.Context, field graphql.CollectedField, obj *model.ComponentType) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ComponentType",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.ComponentType().Components(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Component)
+	fc.Result = res
+	return ec.marshalOComponent2ᚕᚖpartsᚋgraphᚋmodelᚐComponentᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Container_id(ctx context.Context, field graphql.CollectedField, obj *model.Container) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Container",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Container_tenant(ctx context.Context, field graphql.CollectedField, obj *model.Container) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Container",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Container().Tenant(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Tenant)
+	fc.Result = res
+	return ec.marshalNTenant2ᚖpartsᚋgraphᚋmodelᚐTenant(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Container_parent(ctx context.Context, field graphql.CollectedField, obj *model.Container) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Container",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Container().Parent(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.Container)
+	fc.Result = res
+	return ec.marshalOContainer2ᚖpartsᚋgraphᚋmodelᚐContainer(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Container_containerType(ctx context.Context, field graphql.CollectedField, obj *model.Container) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Container",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Container().ContainerType(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.ContainerType)
+	fc.Result = res
+	return ec.marshalNContainerType2ᚖpartsᚋgraphᚋmodelᚐContainerType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Container_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Container) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Container",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Container_description(ctx context.Context, field graphql.CollectedField, obj *model.Container) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Container",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Description, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Container_children(ctx context.Context, field graphql.CollectedField, obj *model.Container) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Container",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Container().Children(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Container)
+	fc.Result = res
+	return ec.marshalOContainer2ᚕᚖpartsᚋgraphᚋmodelᚐContainerᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Container_quantities(ctx context.Context, field graphql.CollectedField, obj *model.Container) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Container",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Container().Quantities(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Quantity)
+	fc.Result = res
+	return ec.marshalOQuantity2ᚕᚖpartsᚋgraphᚋmodelᚐQuantityᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _ContainerType_id(ctx context.Context, field graphql.CollectedField, obj *model.ContainerType) (ret graphql.Marshaler) {
@@ -1003,7 +1889,39 @@ func (ec *executionContext) _ContainerType_description(ctx context.Context, fiel
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Mutation_createTenant(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _ContainerType_containers(ctx context.Context, field graphql.CollectedField, obj *model.ContainerType) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ContainerType",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.ContainerType().Containers(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Container)
+	fc.Result = res
+	return ec.marshalOContainer2ᚕᚖpartsᚋgraphᚋmodelᚐContainerᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_upsertTenant(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1020,7 +1938,7 @@ func (ec *executionContext) _Mutation_createTenant(ctx context.Context, field gr
 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	rawArgs := field.ArgumentMap(ec.Variables)
-	args, err := ec.field_Mutation_createTenant_args(ctx, rawArgs)
+	args, err := ec.field_Mutation_upsertTenant_args(ctx, rawArgs)
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
@@ -1028,7 +1946,7 @@ func (ec *executionContext) _Mutation_createTenant(ctx context.Context, field gr
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateTenant(rctx, args["input"].(model.NewTenant))
+		return ec.resolvers.Mutation().UpsertTenant(rctx, args["input"].(model.NewTenant))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1045,7 +1963,7 @@ func (ec *executionContext) _Mutation_createTenant(ctx context.Context, field gr
 	return ec.marshalNTenant2ᚖpartsᚋgraphᚋmodelᚐTenant(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Mutation_createUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_upsertUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1062,7 +1980,7 @@ func (ec *executionContext) _Mutation_createUser(ctx context.Context, field grap
 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	rawArgs := field.ArgumentMap(ec.Variables)
-	args, err := ec.field_Mutation_createUser_args(ctx, rawArgs)
+	args, err := ec.field_Mutation_upsertUser_args(ctx, rawArgs)
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
@@ -1070,7 +1988,7 @@ func (ec *executionContext) _Mutation_createUser(ctx context.Context, field grap
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateUser(rctx, args["input"].(model.NewUser))
+		return ec.resolvers.Mutation().UpsertUser(rctx, args["input"].(model.NewUser))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1087,7 +2005,7 @@ func (ec *executionContext) _Mutation_createUser(ctx context.Context, field grap
 	return ec.marshalNUser2ᚖpartsᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Mutation_createContainerType(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_upsertContainerType(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1104,7 +2022,7 @@ func (ec *executionContext) _Mutation_createContainerType(ctx context.Context, f
 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	rawArgs := field.ArgumentMap(ec.Variables)
-	args, err := ec.field_Mutation_createContainerType_args(ctx, rawArgs)
+	args, err := ec.field_Mutation_upsertContainerType_args(ctx, rawArgs)
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
@@ -1112,7 +2030,7 @@ func (ec *executionContext) _Mutation_createContainerType(ctx context.Context, f
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateContainerType(rctx, args["input"].(model.NewContainerType))
+		return ec.resolvers.Mutation().UpsertContainerType(rctx, args["input"].(model.NewContainerType))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1129,7 +2047,7 @@ func (ec *executionContext) _Mutation_createContainerType(ctx context.Context, f
 	return ec.marshalNContainerType2ᚖpartsᚋgraphᚋmodelᚐContainerType(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Mutation_createComponentType(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_upsertComponentType(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1146,7 +2064,7 @@ func (ec *executionContext) _Mutation_createComponentType(ctx context.Context, f
 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	rawArgs := field.ArgumentMap(ec.Variables)
-	args, err := ec.field_Mutation_createComponentType_args(ctx, rawArgs)
+	args, err := ec.field_Mutation_upsertComponentType_args(ctx, rawArgs)
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
@@ -1154,7 +2072,7 @@ func (ec *executionContext) _Mutation_createComponentType(ctx context.Context, f
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateComponentType(rctx, args["input"].(model.NewComponentType))
+		return ec.resolvers.Mutation().UpsertComponentType(rctx, args["input"].(model.NewComponentType))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1169,6 +2087,272 @@ func (ec *executionContext) _Mutation_createComponentType(ctx context.Context, f
 	res := resTmp.(*model.ComponentType)
 	fc.Result = res
 	return ec.marshalNComponentType2ᚖpartsᚋgraphᚋmodelᚐComponentType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_upsertContainer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_upsertContainer_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UpsertContainer(rctx, args["input"].(model.NewContainer))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Container)
+	fc.Result = res
+	return ec.marshalNContainer2ᚖpartsᚋgraphᚋmodelᚐContainer(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_upsertComponent(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_upsertComponent_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UpsertComponent(rctx, args["input"].(model.NewComponent))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Component)
+	fc.Result = res
+	return ec.marshalNComponent2ᚖpartsᚋgraphᚋmodelᚐComponent(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_upsertQuantity(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_upsertQuantity_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UpsertQuantity(rctx, args["input"].(model.NewQuantity))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Quantity)
+	fc.Result = res
+	return ec.marshalNQuantity2ᚖpartsᚋgraphᚋmodelᚐQuantity(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Quantity_id(ctx context.Context, field graphql.CollectedField, obj *model.Quantity) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Quantity",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Quantity_container(ctx context.Context, field graphql.CollectedField, obj *model.Quantity) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Quantity",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Quantity().Container(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Container)
+	fc.Result = res
+	return ec.marshalNContainer2ᚖpartsᚋgraphᚋmodelᚐContainer(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Quantity_component(ctx context.Context, field graphql.CollectedField, obj *model.Quantity) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Quantity",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Quantity().Component(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Component)
+	fc.Result = res
+	return ec.marshalNComponent2ᚖpartsᚋgraphᚋmodelᚐComponent(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Quantity_quantity(ctx context.Context, field graphql.CollectedField, obj *model.Quantity) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Quantity",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Quantity, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_tenants(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1337,6 +2521,132 @@ func (ec *executionContext) _Query_componentTypes(ctx context.Context, field gra
 	res := resTmp.([]*model.ComponentType)
 	fc.Result = res
 	return ec.marshalNComponentType2ᚕᚖpartsᚋgraphᚋmodelᚐComponentTypeᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_containers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_containers_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Containers(rctx, args["id"].(*string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Container)
+	fc.Result = res
+	return ec.marshalNContainer2ᚕᚖpartsᚋgraphᚋmodelᚐContainerᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_components(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_components_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Components(rctx, args["id"].(*string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Component)
+	fc.Result = res
+	return ec.marshalNComponent2ᚕᚖpartsᚋgraphᚋmodelᚐComponentᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_quantities(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_quantities_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Quantities(rctx, args["id"].(*string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Quantity)
+	fc.Result = res
+	return ec.marshalNQuantity2ᚕᚖpartsᚋgraphᚋmodelᚐQuantityᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2873,6 +4183,53 @@ func (ec *executionContext) ___Type_ofType(ctx context.Context, field graphql.Co
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputNewComponent(ctx context.Context, obj interface{}) (model.NewComponent, error) {
+	var it model.NewComponent
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	for k, v := range asMap {
+		switch k {
+		case "id":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			it.ID, err = ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "tenantId":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tenantId"))
+			it.TenantID, err = ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "componentTypeId":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("componentTypeId"))
+			it.ComponentTypeID, err = ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "description":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			it.Description, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputNewComponentType(ctx context.Context, obj interface{}) (model.NewComponentType, error) {
 	var it model.NewComponentType
 	asMap := map[string]interface{}{}
@@ -2895,6 +4252,61 @@ func (ec *executionContext) unmarshalInputNewComponentType(ctx context.Context, 
 
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tenantId"))
 			it.TenantID, err = ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "description":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			it.Description, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputNewContainer(ctx context.Context, obj interface{}) (model.NewContainer, error) {
+	var it model.NewContainer
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	for k, v := range asMap {
+		switch k {
+		case "id":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			it.ID, err = ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "tenantId":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tenantId"))
+			it.TenantID, err = ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "parentId":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentId"))
+			it.ParentID, err = ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "containerTypeId":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("containerTypeId"))
+			it.ContainerTypeID, err = ec.unmarshalNID2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -2942,6 +4354,53 @@ func (ec *executionContext) unmarshalInputNewContainerType(ctx context.Context, 
 
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
 			it.Description, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputNewQuantity(ctx context.Context, obj interface{}) (model.NewQuantity, error) {
+	var it model.NewQuantity
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	for k, v := range asMap {
+		switch k {
+		case "id":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			it.ID, err = ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "containerId":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("containerId"))
+			it.ContainerID, err = ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "componentId":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("componentId"))
+			it.ComponentID, err = ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "quantity":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quantity"))
+			it.Quantity, err = ec.unmarshalNInt2int(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -3029,6 +4488,82 @@ func (ec *executionContext) unmarshalInputNewUser(ctx context.Context, obj inter
 
 // region    **************************** object.gotpl ****************************
 
+var componentImplementors = []string{"Component"}
+
+func (ec *executionContext) _Component(ctx context.Context, sel ast.SelectionSet, obj *model.Component) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, componentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Component")
+		case "id":
+			out.Values[i] = ec._Component_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "tenant":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Component_tenant(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "createdAt":
+			out.Values[i] = ec._Component_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "componentType":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Component_componentType(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "description":
+			out.Values[i] = ec._Component_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "quantities":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Component_quantities(ctx, field, obj)
+				return res
+			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var componentTypeImplementors = []string{"ComponentType"}
 
 func (ec *executionContext) _ComponentType(ctx context.Context, sel ast.SelectionSet, obj *model.ComponentType) graphql.Marshaler {
@@ -3069,6 +4604,115 @@ func (ec *executionContext) _ComponentType(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&invalids, 1)
 			}
+		case "components":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ComponentType_components(ctx, field, obj)
+				return res
+			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var containerImplementors = []string{"Container"}
+
+func (ec *executionContext) _Container(ctx context.Context, sel ast.SelectionSet, obj *model.Container) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, containerImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Container")
+		case "id":
+			out.Values[i] = ec._Container_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "tenant":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Container_tenant(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "parent":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Container_parent(ctx, field, obj)
+				return res
+			})
+		case "containerType":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Container_containerType(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "createdAt":
+			out.Values[i] = ec._Container_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "description":
+			out.Values[i] = ec._Container_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "children":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Container_children(ctx, field, obj)
+				return res
+			})
+		case "quantities":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Container_quantities(ctx, field, obj)
+				return res
+			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3120,6 +4764,17 @@ func (ec *executionContext) _ContainerType(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&invalids, 1)
 			}
+		case "containers":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ContainerType_containers(ctx, field, obj)
+				return res
+			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3146,25 +4801,100 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Mutation")
-		case "createTenant":
-			out.Values[i] = ec._Mutation_createTenant(ctx, field)
+		case "upsertTenant":
+			out.Values[i] = ec._Mutation_upsertTenant(ctx, field)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "createUser":
-			out.Values[i] = ec._Mutation_createUser(ctx, field)
+		case "upsertUser":
+			out.Values[i] = ec._Mutation_upsertUser(ctx, field)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "createContainerType":
-			out.Values[i] = ec._Mutation_createContainerType(ctx, field)
+		case "upsertContainerType":
+			out.Values[i] = ec._Mutation_upsertContainerType(ctx, field)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "createComponentType":
-			out.Values[i] = ec._Mutation_createComponentType(ctx, field)
+		case "upsertComponentType":
+			out.Values[i] = ec._Mutation_upsertComponentType(ctx, field)
 			if out.Values[i] == graphql.Null {
 				invalids++
+			}
+		case "upsertContainer":
+			out.Values[i] = ec._Mutation_upsertContainer(ctx, field)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "upsertComponent":
+			out.Values[i] = ec._Mutation_upsertComponent(ctx, field)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "upsertQuantity":
+			out.Values[i] = ec._Mutation_upsertQuantity(ctx, field)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var quantityImplementors = []string{"Quantity"}
+
+func (ec *executionContext) _Quantity(ctx context.Context, sel ast.SelectionSet, obj *model.Quantity) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, quantityImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Quantity")
+		case "id":
+			out.Values[i] = ec._Quantity_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "container":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Quantity_container(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "component":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Quantity_component(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "quantity":
+			out.Values[i] = ec._Quantity_quantity(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -3243,6 +4973,48 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_componentTypes(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "containers":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_containers(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "components":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_components(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "quantities":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_quantities(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
@@ -3649,6 +5421,64 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) marshalNComponent2partsᚋgraphᚋmodelᚐComponent(ctx context.Context, sel ast.SelectionSet, v model.Component) graphql.Marshaler {
+	return ec._Component(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNComponent2ᚕᚖpartsᚋgraphᚋmodelᚐComponentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Component) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNComponent2ᚖpartsᚋgraphᚋmodelᚐComponent(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNComponent2ᚖpartsᚋgraphᚋmodelᚐComponent(ctx context.Context, sel ast.SelectionSet, v *model.Component) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Component(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNComponentType2partsᚋgraphᚋmodelᚐComponentType(ctx context.Context, sel ast.SelectionSet, v model.ComponentType) graphql.Marshaler {
 	return ec._ComponentType(ctx, sel, &v)
 }
@@ -3705,6 +5535,64 @@ func (ec *executionContext) marshalNComponentType2ᚖpartsᚋgraphᚋmodelᚐCom
 		return graphql.Null
 	}
 	return ec._ComponentType(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNContainer2partsᚋgraphᚋmodelᚐContainer(ctx context.Context, sel ast.SelectionSet, v model.Container) graphql.Marshaler {
+	return ec._Container(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNContainer2ᚕᚖpartsᚋgraphᚋmodelᚐContainerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Container) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNContainer2ᚖpartsᚋgraphᚋmodelᚐContainer(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNContainer2ᚖpartsᚋgraphᚋmodelᚐContainer(ctx context.Context, sel ast.SelectionSet, v *model.Container) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Container(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNContainerType2partsᚋgraphᚋmodelᚐContainerType(ctx context.Context, sel ast.SelectionSet, v model.ContainerType) graphql.Marshaler {
@@ -3780,13 +5668,43 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v interface{}) (int, error) {
+	res, err := graphql.UnmarshalInt(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.SelectionSet, v int) graphql.Marshaler {
+	res := graphql.MarshalInt(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNNewComponent2partsᚋgraphᚋmodelᚐNewComponent(ctx context.Context, v interface{}) (model.NewComponent, error) {
+	res, err := ec.unmarshalInputNewComponent(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNNewComponentType2partsᚋgraphᚋmodelᚐNewComponentType(ctx context.Context, v interface{}) (model.NewComponentType, error) {
 	res, err := ec.unmarshalInputNewComponentType(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNNewContainer2partsᚋgraphᚋmodelᚐNewContainer(ctx context.Context, v interface{}) (model.NewContainer, error) {
+	res, err := ec.unmarshalInputNewContainer(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNNewContainerType2partsᚋgraphᚋmodelᚐNewContainerType(ctx context.Context, v interface{}) (model.NewContainerType, error) {
 	res, err := ec.unmarshalInputNewContainerType(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNNewQuantity2partsᚋgraphᚋmodelᚐNewQuantity(ctx context.Context, v interface{}) (model.NewQuantity, error) {
+	res, err := ec.unmarshalInputNewQuantity(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -3798,6 +5716,64 @@ func (ec *executionContext) unmarshalNNewTenant2partsᚋgraphᚋmodelᚐNewTenan
 func (ec *executionContext) unmarshalNNewUser2partsᚋgraphᚋmodelᚐNewUser(ctx context.Context, v interface{}) (model.NewUser, error) {
 	res, err := ec.unmarshalInputNewUser(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNQuantity2partsᚋgraphᚋmodelᚐQuantity(ctx context.Context, sel ast.SelectionSet, v model.Quantity) graphql.Marshaler {
+	return ec._Quantity(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNQuantity2ᚕᚖpartsᚋgraphᚋmodelᚐQuantityᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Quantity) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNQuantity2ᚖpartsᚋgraphᚋmodelᚐQuantity(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNQuantity2ᚖpartsᚋgraphᚋmodelᚐQuantity(ctx context.Context, sel ast.SelectionSet, v *model.Quantity) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Quantity(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
@@ -4227,6 +6203,53 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return graphql.MarshalBoolean(*v)
 }
 
+func (ec *executionContext) marshalOComponent2ᚕᚖpartsᚋgraphᚋmodelᚐComponentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Component) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNComponent2ᚖpartsᚋgraphᚋmodelᚐComponent(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalOComponentType2ᚕᚖpartsᚋgraphᚋmodelᚐComponentTypeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ComponentType) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -4272,6 +6295,60 @@ func (ec *executionContext) marshalOComponentType2ᚕᚖpartsᚋgraphᚋmodelᚐ
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalOContainer2ᚕᚖpartsᚋgraphᚋmodelᚐContainerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Container) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNContainer2ᚖpartsᚋgraphᚋmodelᚐContainer(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalOContainer2ᚖpartsᚋgraphᚋmodelᚐContainer(ctx context.Context, sel ast.SelectionSet, v *model.Container) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Container(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOContainerType2ᚕᚖpartsᚋgraphᚋmodelᚐContainerTypeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ContainerType) graphql.Marshaler {
@@ -4334,6 +6411,53 @@ func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.Se
 		return graphql.Null
 	}
 	return graphql.MarshalID(*v)
+}
+
+func (ec *executionContext) marshalOQuantity2ᚕᚖpartsᚋgraphᚋmodelᚐQuantityᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Quantity) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNQuantity2ᚖpartsᚋgraphᚋmodelᚐQuantity(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v interface{}) (string, error) {

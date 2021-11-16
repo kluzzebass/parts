@@ -11,9 +11,9 @@ CREATE TABLE "user" (
   user_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenant (tenant_id),
   created_at timestamptz NOT NULL DEFAULT now(),
-  name text NOT NULL,
-  email text NOT NULL,
-  UNIQUE (tenant_id, email)
+  name text NOT NULL
+  -- email text NOT NULL,
+  -- UNIQUE (tenant_id, email)
 );
 
 CREATE INDEX user_tenant_id_idx ON "user" (tenant_id);
@@ -70,6 +70,7 @@ CREATE TABLE quantity (
   quantity_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   container_id uuid NOT NULL REFERENCES container (container_id),
   component_id uuid NOT NULL REFERENCES component (component_id),
+  created_at timestamptz NOT NULL DEFAULT now(),
   quantity int NOT NULL default 0 CHECK (quantity >= 0),
   UNIQUE (container_id, component_id)
 );

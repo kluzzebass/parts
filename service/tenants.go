@@ -5,8 +5,8 @@ import (
 	"parts/graph/model"
 )
 
-func (s *Service) CreateTenant(ctx context.Context, nt model.NewTenant) (*model.Tenant, error) {
-	return s.repo.CreateTenant(ctx, nt)
+func (s *Service) UpsertTenant(ctx context.Context, input model.NewTenant) (*model.Tenant, error) {
+	return s.repo.UpsertTenant(ctx, input)
 }
 
 func (s *Service) ListTenants(ctx context.Context, ids *[]string) ([]*model.Tenant, error) {

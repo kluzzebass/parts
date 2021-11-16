@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (repo *Repository) CreateComponentType(ctx context.Context, nt model.NewComponentType) (*model.ComponentType, error) {
+func (repo *Repository) UpsertComponentType(ctx context.Context, input model.NewComponentType) (*model.ComponentType, error) {
 	sql := `
 		INSERT INTO
 			component_type
@@ -34,7 +34,7 @@ func (repo *Repository) CreateComponentType(ctx context.Context, nt model.NewCom
 	var createdAt time.Time
 	var description string
 
-	err := repo.pool.QueryRow(ctx, sql, nt.ID, nt.TenantID, nt.Description).Scan(&id, &tenantId, &createdAt, &description)
+	err := repo.pool.QueryRow(ctx, sql, input.ID, input.TenantID, input.Description).Scan(&id, &tenantId, &createdAt, &description)
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)

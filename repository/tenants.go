@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (repo *Repository) CreateTenant(ctx context.Context, nt model.NewTenant) (*model.Tenant, error) {
+func (repo *Repository) UpsertTenant(ctx context.Context, input model.NewTenant) (*model.Tenant, error) {
 	sql := `
 		INSERT INTO
 			tenant
@@ -30,7 +30,7 @@ func (repo *Repository) CreateTenant(ctx context.Context, nt model.NewTenant) (*
 	var createdAt time.Time
 	var name string
 
-	err := repo.pool.QueryRow(ctx, sql, nt.ID, nt.Name).Scan(&id, &createdAt, &name)
+	err := repo.pool.QueryRow(ctx, sql, input.ID, input.Name).Scan(&id, &createdAt, &name)
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)

@@ -8,19 +8,20 @@ type Query {
   tenants(id: ID): [Tenant!]!
   users(id: ID): [User!]!
   containerTypes(id: ID): [ContainerType!]!
-  # containers: [Container!]!
   componentTypes(id: ID): [ComponentType!]!
-  # components: [Component!]!
+  containers(id: ID): [Container!]!
+  components(id: ID): [Component!]!
+  quantities(id: ID): [Quantity!]!
 }
 
 type Mutation {
-  createTenant(input: NewTenant!): Tenant!
-  createUser(input: NewUser!): User!
-  createContainerType(input: NewContainerType!): ContainerType!
-  # createContainer(input: NewContainer!): Container!
-  createComponentType(input: NewComponentType!): ComponentType!
-  # createComponent(input: NewComponent!): Component!
-  # createQuantity(input: NewQuantity!): Quantity!
+  upsertTenant(input: NewTenant!): Tenant!
+  upsertUser(input: NewUser!): User!
+  upsertContainerType(input: NewContainerType!): ContainerType!
+  upsertComponentType(input: NewComponentType!): ComponentType!
+  upsertContainer(input: NewContainer!): Container!
+  upsertComponent(input: NewComponent!): Component!
+  upsertQuantity(input: NewQuantity!): Quantity!
 }
 
 type Tenant {
@@ -55,7 +56,7 @@ type ContainerType {
   tenant: Tenant!
   createdAt: Time!
   description: String!
-  # containers: [Container!]
+  containers: [Container!]
 }
 
 input NewContainerType{
@@ -64,27 +65,31 @@ input NewContainerType{
   description: String!
 }
 
-# type Container {
-#   id: ID!
-#   tenant: Tenant!
-#   createdAt: Time!
-#   containerType: ContainerType!
-#   description: String!
-#   components: [Component!]
-# }
+type Container {
+  id: ID!
+  tenant: Tenant!
+  parent: Container
+  containerType: ContainerType!
+  createdAt: Time!
+  description: String!
+  children: [Container!]
+  quantities: [Quantity!]
+}
 
-# input NewContainer {
-#   tenant: ID!
-#   containerType: ID!
-#   description: String!
-# }
+input NewContainer {
+  id: ID
+  tenantId: ID!
+  parentId: ID
+  containerTypeId: ID!
+  description: String!
+}
 
 type ComponentType {
   id: ID!
   tenant: Tenant!
   createdAt: Time!
   description: String!
-#  components: [Component!]
+  components: [Component!]
 }
 
 input NewComponentType {
@@ -93,30 +98,32 @@ input NewComponentType {
   description: String!
 }
 
-# type Component {
-#   id: ID!
-#   tenant: Tenant!
-#   createdAt: Time!
-#   componentType: ComponentType!
-#   description: String!
-#   containers: [Container!]
-# }
+type Component {
+  id: ID!
+  tenant: Tenant!
+  createdAt: Time!
+  componentType: ComponentType!
+  description: String!
+  quantities: [Quantity!]
+}
 
-# input NewComponent {
-#   tenant: ID!
-#   componentType: ID!
-#   description: String!
-# }
+input NewComponent {
+  id: ID
+  tenantId: ID!
+  componentTypeId: ID!
+  description: String!
+}
 
-# type Quantity {
-#   id: ID!
-#   container: Container!
-#   component: Component!
-#   quantity: Int!
-# }
+type Quantity {
+  id: ID!
+  container: Container!
+  component: Component!
+  quantity: Int!
+}
 
-# input NewQuantity {
-#   container: ID!
-#   component: ID!
-#   quantity: Int!
-# }
+input NewQuantity {
+  id: ID
+  containerId: ID!
+  componentId: ID!
+  quantity: Int!
+}

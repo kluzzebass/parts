@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (repo *Repository) CreateContainerType(ctx context.Context, nt model.NewContainerType) (*model.ContainerType, error) {
+func (repo *Repository) UpsertContainerType(ctx context.Context, input model.NewContainerType) (*model.ContainerType, error) {
 	sql := `
 		INSERT INTO
 			container_type
@@ -34,7 +34,7 @@ func (repo *Repository) CreateContainerType(ctx context.Context, nt model.NewCon
 	var createdAt time.Time
 	var description string
 
-	err := repo.pool.QueryRow(ctx, sql, nt.ID, nt.TenantID, nt.Description).Scan(&id, &tenantId, &createdAt, &description)
+	err := repo.pool.QueryRow(ctx, sql, input.ID, input.TenantID, input.Description).Scan(&id, &tenantId, &createdAt, &description)
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
