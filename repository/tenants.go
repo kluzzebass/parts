@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"parts/graph/model"
+	"time"
 )
 
 func (repo *Repository) CreateTenant(ctx context.Context, nt model.NewTenant) (*model.Tenant, error) {
@@ -23,10 +24,10 @@ func (repo *Repository) CreateTenant(ctx context.Context, nt model.NewTenant) (*
 		ON CONFLICT (tenant_id) DO UPDATE
 		SET
 			name = EXCLUDED.name
-		RETURNING tenant_id, created_at::text, name
+		RETURNING tenant_id, created_at, name
 	`
 	var id string
-	var createdAt string
+	var createdAt time.Time
 	var name string
 
 	err := repo.pool.QueryRow(ctx, sql, nt.ID, nt.Name).Scan(&id, &createdAt, &name)
@@ -89,7 +90,7 @@ func (repo *Repository) ListTenants(ctx context.Context, ids *[]string) ([]*mode
 		)
 		SELECT
 			rt.tenant_id AS id,
-			rt.created_at::text,
+			rt.created_at,
 			rt.name,
 			COALESCE(ru.users, ARRAY[]::uuid[]) AS users,
 			COALESCE(rcnt.container_types, ARRAY[]::uuid[]) as container_types,
@@ -114,7 +115,7 @@ func (repo *Repository) ListTenants(ctx context.Context, ids *[]string) ([]*mode
 
 	for rows.Next() {
 		var id string
-		var createdAt string
+		var createdAt time.Time
 		var name string
 		var users []string
 		var containerTypes []string

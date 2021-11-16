@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"parts/graph/model"
+	"time"
 )
 
 func (repo *Repository) CreateComponentType(ctx context.Context, nt model.NewComponentType) (*model.ComponentType, error) {
@@ -25,12 +26,12 @@ func (repo *Repository) CreateComponentType(ctx context.Context, nt model.NewCom
 		ON CONFLICT (component_type_id) DO UPDATE
 		SET
 			description = EXCLUDED.description
-		RETURNING component_type_id, tenant_id, created_at::text, description
+		RETURNING component_type_id, tenant_id, created_at, description
 	`
 
 	var id string
 	var tenantId string
-	var createdAt string
+	var createdAt time.Time
 	var description string
 
 	err := repo.pool.QueryRow(ctx, sql, nt.ID, nt.TenantID, nt.Description).Scan(&id, &tenantId, &createdAt, &description)
@@ -50,16 +51,38 @@ func (repo *Repository) CreateComponentType(ctx context.Context, nt model.NewCom
 
 func (repo *Repository) ListComponentTypes(ctx context.Context, ids *[]string) ([]*model.ComponentType, error) {
 	sql := `
+		WITH
+		relevant_component_types AS (
+			SELECT
+				ct.component_type_id,
+				ct.tenant_id,
+				ct.created_at,
+				ct.description
+			FROM
+				component_type ct
+			WHERE
+				$1::uuid[] IS NULL
+				OR ($1::uuid[] IS NOT NULL AND ct.component_type_id = ANY ($1::uuid[]))
+		),
+		relevant_components AS (
+			SELECT
+				rct.component_type_id,
+				array_agg(c.component_id) AS components
+			FROM
+				relevant_component_types rct
+				JOIN component c USING (component_type_id)
+			GROUP BY
+				rct.component_type_id
+		)
 		SELECT
-			component_type_id AS id,
-			tenant_id,
-			created_at::text,
-			description
+			rct.component_type_id AS id,
+			rct.tenant_id,
+			rct.created_at,
+			rct.description,
+			COALESCE(rc.components, ARRAY[]::uuid[]) AS components
 		FROM
-			component_type
-		WHERE
-			$1::uuid[] IS NULL
-			OR ($1::uuid[] IS NOT NULL AND component_type_id = ANY ($1::uuid[]))
+			relevant_component_types rct
+			LEFT JOIN relevant_components rc USING (component_type_id)
 	`
 
 	rows, err := repo.pool.Query(ctx, sql, ids)
@@ -76,9 +99,11 @@ func (repo *Repository) ListComponentTypes(ctx context.Context, ids *[]string) (
 	for rows.Next() {
 		var id string
 		var tenantId string
-		var createdAt string
+		var createdAt time.Time
 		var description string
-		err := rows.Scan(&id, &tenantId, &createdAt, &description)
+		var components []string
+
+		err := rows.Scan(&id, &tenantId, &createdAt, &description, &components)
 		if err != nil {
 			return nil, err
 		}

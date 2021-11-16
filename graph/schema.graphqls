@@ -2,6 +2,7 @@
 #
 # https://gqlgen.com/getting-started/
 
+scalar Time
 
 type Query {
   tenants(id: ID): [Tenant!]!
@@ -24,7 +25,7 @@ type Mutation {
 
 type Tenant {
   id: ID!
-  createdAt: String!
+  createdAt: Time!
   name: String!
   users: [User!]
   containerTypes: [ContainerType!]
@@ -39,7 +40,7 @@ input NewTenant {
 type User {
   id: ID!
   tenant: Tenant!
-  createdAt: String!
+  createdAt: Time!
   name: String!
 }
 
@@ -52,7 +53,7 @@ input NewUser {
 type ContainerType {
   id: ID!
   tenant: Tenant!
-  createdAt: String!
+  createdAt: Time!
   description: String!
   # containers: [Container!]
 }
@@ -66,7 +67,7 @@ input NewContainerType{
 # type Container {
 #   id: ID!
 #   tenant: Tenant!
-#   createdAt: String!
+#   createdAt: Time!
 #   containerType: ContainerType!
 #   description: String!
 #   components: [Component!]
@@ -81,7 +82,7 @@ input NewContainerType{
 type ComponentType {
   id: ID!
   tenant: Tenant!
-  createdAt: String!
+  createdAt: Time!
   description: String!
 #  components: [Component!]
 }
@@ -95,7 +96,7 @@ input NewComponentType {
 # type Component {
 #   id: ID!
 #   tenant: Tenant!
-#   createdAt: String!
+#   createdAt: Time!
 #   componentType: ComponentType!
 #   description: String!
 #   containers: [Container!]

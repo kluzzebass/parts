@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
@@ -424,6 +425,7 @@ var sources = []*ast.Source{
 #
 # https://gqlgen.com/getting-started/
 
+scalar Time
 
 type Query {
   tenants(id: ID): [Tenant!]!
@@ -446,7 +448,7 @@ type Mutation {
 
 type Tenant {
   id: ID!
-  createdAt: String!
+  createdAt: Time!
   name: String!
   users: [User!]
   containerTypes: [ContainerType!]
@@ -461,7 +463,7 @@ input NewTenant {
 type User {
   id: ID!
   tenant: Tenant!
-  createdAt: String!
+  createdAt: Time!
   name: String!
 }
 
@@ -474,7 +476,7 @@ input NewUser {
 type ContainerType {
   id: ID!
   tenant: Tenant!
-  createdAt: String!
+  createdAt: Time!
   description: String!
   # containers: [Container!]
 }
@@ -488,7 +490,7 @@ input NewContainerType{
 # type Container {
 #   id: ID!
 #   tenant: Tenant!
-#   createdAt: String!
+#   createdAt: Time!
 #   containerType: ContainerType!
 #   description: String!
 #   components: [Component!]
@@ -503,7 +505,7 @@ input NewContainerType{
 type ComponentType {
   id: ID!
   tenant: Tenant!
-  createdAt: String!
+  createdAt: Time!
   description: String!
 #  components: [Component!]
 }
@@ -517,7 +519,7 @@ input NewComponentType {
 # type Component {
 #   id: ID!
 #   tenant: Tenant!
-#   createdAt: String!
+#   createdAt: Time!
 #   componentType: ComponentType!
 #   description: String!
 #   containers: [Container!]
@@ -821,9 +823,9 @@ func (ec *executionContext) _ComponentType_createdAt(ctx context.Context, field 
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(time.Time)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _ComponentType_description(ctx context.Context, field graphql.CollectedField, obj *model.ComponentType) (ret graphql.Marshaler) {
@@ -961,9 +963,9 @@ func (ec *executionContext) _ContainerType_createdAt(ctx context.Context, field 
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(time.Time)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _ContainerType_description(ctx context.Context, field graphql.CollectedField, obj *model.ContainerType) (ret graphql.Marshaler) {
@@ -1473,9 +1475,9 @@ func (ec *executionContext) _Tenant_createdAt(ctx context.Context, field graphql
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(time.Time)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Tenant_name(ctx context.Context, field graphql.CollectedField, obj *model.Tenant) (ret graphql.Marshaler) {
@@ -1709,9 +1711,9 @@ func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.C
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(time.Time)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _User_name(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
@@ -3869,6 +3871,21 @@ func (ec *executionContext) marshalNTenant2ᚖpartsᚋgraphᚋmodelᚐTenant(ctx
 		return graphql.Null
 	}
 	return ec._Tenant(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNTime2timeᚐTime(ctx context.Context, v interface{}) (time.Time, error) {
+	res, err := graphql.UnmarshalTime(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel ast.SelectionSet, v time.Time) graphql.Marshaler {
+	res := graphql.MarshalTime(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
 }
 
 func (ec *executionContext) marshalNUser2partsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v model.User) graphql.Marshaler {

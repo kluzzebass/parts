@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"parts/graph/model"
+	"time"
 )
 
 func (repo *Repository) CreateContainerType(ctx context.Context, nt model.NewContainerType) (*model.ContainerType, error) {
@@ -25,12 +26,12 @@ func (repo *Repository) CreateContainerType(ctx context.Context, nt model.NewCon
 		ON CONFLICT (container_type_id) DO UPDATE
 		SET
 			description = EXCLUDED.description
-		RETURNING container_type_id, tenant_id, created_at::text, description
+		RETURNING container_type_id, tenant_id, created_at, description
 	`
 
 	var id string
 	var tenantId string
-	var createdAt string
+	var createdAt time.Time
 	var description string
 
 	err := repo.pool.QueryRow(ctx, sql, nt.ID, nt.TenantID, nt.Description).Scan(&id, &tenantId, &createdAt, &description)
@@ -50,17 +51,39 @@ func (repo *Repository) CreateContainerType(ctx context.Context, nt model.NewCon
 
 func (repo *Repository) ListContainerTypes(ctx context.Context, ids *[]string) ([]*model.ContainerType, error) {
 	sql := `
+	WITH
+	relevant_container_types AS (
 		SELECT
-			container_type_id AS id,
-			tenant_id,
-			created_at::text,
-			description
+			ct.container_type_id,
+			ct.tenant_id,
+			ct.created_at,
+			ct.description
 		FROM
-			container_type
+			container_type ct
 		WHERE
 			$1::uuid[] IS NULL
-			OR ($1::uuid[] IS NOT NULL AND container_type_id = ANY ($1::uuid[]))
-	`
+			OR ($1::uuid[] IS NOT NULL AND ct.container_type_id = ANY ($1::uuid[]))
+	),
+	relevant_containers AS (
+		SELECT
+			rct.container_type_id,
+			array_agg(c.container_id) AS containers
+		FROM
+			relevant_container_types rct
+			JOIN container c USING (container_type_id)
+		GROUP BY
+			rct.container_type_id
+	)
+	SELECT
+		rct.container_type_id AS id,
+		rct.tenant_id,
+		rct.created_at,
+		rct.description,
+		COALESCE(rc.containers, ARRAY[]::uuid[]) AS containers
+	FROM
+		relevant_container_types rct
+		LEFT JOIN relevant_containers rc USING (container_type_id)
+`
 
 	rows, err := repo.pool.Query(ctx, sql, ids)
 
@@ -76,9 +99,11 @@ func (repo *Repository) ListContainerTypes(ctx context.Context, ids *[]string) (
 	for rows.Next() {
 		var id string
 		var tenantId string
-		var createdAt string
+		var createdAt time.Time
 		var description string
-		err := rows.Scan(&id, &tenantId, &createdAt, &description)
+		var containers []string
+
+		err := rows.Scan(&id, &tenantId, &createdAt, &description, &containers)
 		if err != nil {
 			return nil, err
 		}

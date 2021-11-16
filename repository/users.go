@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"parts/graph/model"
+	"time"
 )
 
 func (repo *Repository) CreateUser(ctx context.Context, nt model.NewUser) (*model.User, error) {
@@ -25,12 +26,12 @@ func (repo *Repository) CreateUser(ctx context.Context, nt model.NewUser) (*mode
 		ON CONFLICT (user_id) DO UPDATE
 		SET
 			name = EXCLUDED.name
-		RETURNING user_id, tenant_id, created_at::text, name
+		RETURNING user_id, tenant_id, created_at, name
 	`
 
 	var id string
 	var tenantId string
-	var createdAt string
+	var createdAt time.Time
 	var name string
 
 	err := repo.pool.QueryRow(ctx, sql, nt.ID, nt.TenantID, nt.Name).Scan(&id, &tenantId, &createdAt, &name)
@@ -53,7 +54,7 @@ func (repo *Repository) ListUsers(ctx context.Context, ids *[]string) ([]*model.
 		SELECT
 			user_id AS id,
 			tenant_id,
-			created_at::text,
+			created_at,
 			name
 		FROM
 			"user"
@@ -76,7 +77,7 @@ func (repo *Repository) ListUsers(ctx context.Context, ids *[]string) ([]*model.
 	for rows.Next() {
 		var id string
 		var tenantId string
-		var createdAt string
+		var createdAt time.Time
 		var name string
 		err := rows.Scan(&id, &tenantId, &createdAt, &name)
 		if err != nil {
