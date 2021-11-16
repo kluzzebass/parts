@@ -7,7 +7,7 @@ import (
 	"parts/graph/model"
 )
 
-func (repo *Repository) CreateUser(nt model.NewUser) (*model.User, error) {
+func (repo *Repository) CreateUser(ctx context.Context, nt model.NewUser) (*model.User, error) {
 	sql := `
 		INSERT INTO
 			"user"
@@ -22,14 +22,18 @@ func (repo *Repository) CreateUser(nt model.NewUser) (*model.User, error) {
 			$2,
 			$3
 		)
+		ON CONFLICT (user_id) DO UPDATE
+		SET
+			name = EXCLUDED.name
 		RETURNING user_id, tenant_id, created_at::text, name
 	`
+
 	var id string
 	var tenantId string
 	var createdAt string
 	var name string
 
-	err := repo.pool.QueryRow(context.TODO(), sql, nt.ID, nt.TenantID, nt.Name).Scan(&id, &tenantId, &createdAt, &name)
+	err := repo.pool.QueryRow(ctx, sql, nt.ID, nt.TenantID, nt.Name).Scan(&id, &tenantId, &createdAt, &name)
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
@@ -44,7 +48,7 @@ func (repo *Repository) CreateUser(nt model.NewUser) (*model.User, error) {
 	}, err
 }
 
-func (repo *Repository) ListUsers(userIds *[]string) ([]*model.User, error) {
+func (repo *Repository) ListUsers(ctx context.Context, ids *[]string) ([]*model.User, error) {
 	sql := `
 		SELECT
 			user_id AS id,
@@ -57,9 +61,11 @@ func (repo *Repository) ListUsers(userIds *[]string) ([]*model.User, error) {
 			$1::uuid[] IS NULL
 			OR ($1::uuid[] IS NOT NULL AND user_id = ANY ($1::uuid[]))
 	`
-	rows, err := repo.pool.Query(context.TODO(), sql, userIds)
+
+	rows, err := repo.pool.Query(ctx, sql, ids)
 
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Query failed: %v\n", err)
 		return nil, err
 	}
 
@@ -83,10 +89,6 @@ func (repo *Repository) ListUsers(userIds *[]string) ([]*model.User, error) {
 			CreatedAt: createdAt,
 			Name:      name,
 		})
-	}
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
 	}
 
 	return users, err

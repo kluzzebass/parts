@@ -12,10 +12,4 @@ import (
 
 type Resolver struct {
 	Svc *service.Service
-	// tenants []*model.Tenant
-	// users   []*model.User
-	// containerTypes []*model.ContainerType
-	// containers     []*model.Container
-	// componentTypes []*model.ComponentType
-	// components     []*model.Component
 }

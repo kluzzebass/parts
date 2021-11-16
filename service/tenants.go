@@ -1,13 +1,14 @@
 package service
 
 import (
+	"context"
 	"parts/graph/model"
 )
 
-func (s *Service) CreateTenant(nt model.NewTenant) (*model.Tenant, error) {
-	return s.repo.CreateTenant(nt)
+func (s *Service) CreateTenant(ctx context.Context, nt model.NewTenant) (*model.Tenant, error) {
+	return s.repo.CreateTenant(ctx, nt)
 }
 
-func (s *Service) ListTenants(id *string) ([]*model.Tenant, error) {
-	return s.repo.ListTenants(id)
+func (s *Service) ListTenants(ctx context.Context, ids *[]string) ([]*model.Tenant, error) {
+	return s.repo.ListTenants(ctx, ids)
 }

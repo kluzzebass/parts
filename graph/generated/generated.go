@@ -35,6 +35,7 @@ type Config struct {
 }
 
 type ResolverRoot interface {
+	ContainerType() ContainerTypeResolver
 	Mutation() MutationResolver
 	Query() QueryResolver
 	Tenant() TenantResolver
@@ -45,21 +46,31 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	ContainerType struct {
+		CreatedAt   func(childComplexity int) int
+		Description func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Tenant      func(childComplexity int) int
+	}
+
 	Mutation struct {
-		CreateTenant func(childComplexity int, input model.NewTenant) int
-		CreateUser   func(childComplexity int, input model.NewUser) int
+		CreateContainerType func(childComplexity int, input model.NewContainerType) int
+		CreateTenant        func(childComplexity int, input model.NewTenant) int
+		CreateUser          func(childComplexity int, input model.NewUser) int
 	}
 
 	Query struct {
-		Tenants func(childComplexity int, id *string) int
-		Users   func(childComplexity int, id *string) int
+		ContainerTypes func(childComplexity int, id *string) int
+		Tenants        func(childComplexity int, id *string) int
+		Users          func(childComplexity int, id *string) int
 	}
 
 	Tenant struct {
-		CreatedAt func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Name      func(childComplexity int) int
-		Users     func(childComplexity int) int
+		ContainerTypes func(childComplexity int) int
+		CreatedAt      func(childComplexity int) int
+		ID             func(childComplexity int) int
+		Name           func(childComplexity int) int
+		Users          func(childComplexity int) int
 	}
 
 	User struct {
@@ -70,16 +81,22 @@ type ComplexityRoot struct {
 	}
 }
 
+type ContainerTypeResolver interface {
+	Tenant(ctx context.Context, obj *model.ContainerType) (*model.Tenant, error)
+}
 type MutationResolver interface {
 	CreateTenant(ctx context.Context, input model.NewTenant) (*model.Tenant, error)
 	CreateUser(ctx context.Context, input model.NewUser) (*model.User, error)
+	CreateContainerType(ctx context.Context, input model.NewContainerType) (*model.ContainerType, error)
 }
 type QueryResolver interface {
 	Tenants(ctx context.Context, id *string) ([]*model.Tenant, error)
 	Users(ctx context.Context, id *string) ([]*model.User, error)
+	ContainerTypes(ctx context.Context, id *string) ([]*model.ContainerType, error)
 }
 type TenantResolver interface {
 	Users(ctx context.Context, obj *model.Tenant) ([]*model.User, error)
+	ContainerTypes(ctx context.Context, obj *model.Tenant) ([]*model.ContainerType, error)
 }
 type UserResolver interface {
 	Tenant(ctx context.Context, obj *model.User) (*model.Tenant, error)
@@ -99,6 +116,46 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "ContainerType.createdAt":
+		if e.complexity.ContainerType.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.ContainerType.CreatedAt(childComplexity), true
+
+	case "ContainerType.description":
+		if e.complexity.ContainerType.Description == nil {
+			break
+		}
+
+		return e.complexity.ContainerType.Description(childComplexity), true
+
+	case "ContainerType.id":
+		if e.complexity.ContainerType.ID == nil {
+			break
+		}
+
+		return e.complexity.ContainerType.ID(childComplexity), true
+
+	case "ContainerType.tenant":
+		if e.complexity.ContainerType.Tenant == nil {
+			break
+		}
+
+		return e.complexity.ContainerType.Tenant(childComplexity), true
+
+	case "Mutation.createContainerType":
+		if e.complexity.Mutation.CreateContainerType == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createContainerType_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateContainerType(childComplexity, args["input"].(model.NewContainerType)), true
 
 	case "Mutation.createTenant":
 		if e.complexity.Mutation.CreateTenant == nil {
@@ -124,6 +181,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreateUser(childComplexity, args["input"].(model.NewUser)), true
 
+	case "Query.containerTypes":
+		if e.complexity.Query.ContainerTypes == nil {
+			break
+		}
+
+		args, err := ec.field_Query_containerTypes_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ContainerTypes(childComplexity, args["id"].(*string)), true
+
 	case "Query.tenants":
 		if e.complexity.Query.Tenants == nil {
 			break
@@ -147,6 +216,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.Users(childComplexity, args["id"].(*string)), true
+
+	case "Tenant.containerTypes":
+		if e.complexity.Tenant.ContainerTypes == nil {
+			break
+		}
+
+		return e.complexity.Tenant.ContainerTypes(childComplexity), true
 
 	case "Tenant.createdAt":
 		if e.complexity.Tenant.CreatedAt == nil {
@@ -276,7 +352,7 @@ var sources = []*ast.Source{
 type Query {
   tenants(id: ID): [Tenant!]!
   users(id: ID): [User!]!
-  # containerTypes: [ContainerType!]!
+  containerTypes(id: ID): [ContainerType!]!
   # containers: [Container!]!
   # componentTypes: [ComponentType!]!
   # components: [Component!]!
@@ -285,6 +361,7 @@ type Query {
 type Mutation {
   createTenant(input: NewTenant!): Tenant!
   createUser(input: NewUser!): User!
+  createContainerType(input: NewContainerType!): ContainerType!
   # createContainerType(input: NewContainerType!): ContainerType!
   # createContainer(input: NewContainer!): Container!
   # createComponentType(input: NewComponentType!): ComponentType!
@@ -297,6 +374,7 @@ type Tenant {
   createdAt: String!
   name: String!
   users: [User!]
+  containerTypes: [ContainerType!]
 }
 
 input NewTenant {
@@ -317,18 +395,19 @@ input NewUser {
   name: String!
 }
 
-# type ContainerType {
-#   id: ID!
-#   tenant: Tenant!
-#   createdAt: String!
-#   description: String!
-#   containers: [Container!]
-# }
+type ContainerType {
+  id: ID!
+  tenant: Tenant!
+  createdAt: String!
+  description: String!
+  # containers: [Container!]
+}
 
-# input NewContainerType{
-#   tenant: ID!
-#   description: String!
-# }
+input NewContainerType{
+  id: ID
+  tenantId: ID!
+  description: String!
+}
 
 # type Container {
 #   id: ID!
@@ -392,6 +471,21 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_Mutation_createContainerType_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.NewContainerType
+	if tmp, ok := rawArgs["input"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+		arg0, err = ec.unmarshalNNewContainerType2partsᚋgraphᚋmodelᚐNewContainerType(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createTenant_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -434,6 +528,21 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		}
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_containerTypes_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalOID2ᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -504,6 +613,146 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _ContainerType_id(ctx context.Context, field graphql.CollectedField, obj *model.ContainerType) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ContainerType",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ContainerType_tenant(ctx context.Context, field graphql.CollectedField, obj *model.ContainerType) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ContainerType",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.ContainerType().Tenant(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Tenant)
+	fc.Result = res
+	return ec.marshalNTenant2ᚖpartsᚋgraphᚋmodelᚐTenant(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ContainerType_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.ContainerType) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ContainerType",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ContainerType_description(ctx context.Context, field graphql.CollectedField, obj *model.ContainerType) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ContainerType",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Description, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
 
 func (ec *executionContext) _Mutation_createTenant(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
@@ -589,6 +838,48 @@ func (ec *executionContext) _Mutation_createUser(ctx context.Context, field grap
 	return ec.marshalNUser2ᚖpartsᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Mutation_createContainerType(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_createContainerType_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CreateContainerType(rctx, args["input"].(model.NewContainerType))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.ContainerType)
+	fc.Result = res
+	return ec.marshalNContainerType2ᚖpartsᚋgraphᚋmodelᚐContainerType(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Query_tenants(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -671,6 +962,48 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 	res := resTmp.([]*model.User)
 	fc.Result = res
 	return ec.marshalNUser2ᚕᚖpartsᚋgraphᚋmodelᚐUserᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_containerTypes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_containerTypes_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().ContainerTypes(rctx, args["id"].(*string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.ContainerType)
+	fc.Result = res
+	return ec.marshalNContainerType2ᚕᚖpartsᚋgraphᚋmodelᚐContainerTypeᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -879,6 +1212,38 @@ func (ec *executionContext) _Tenant_users(ctx context.Context, field graphql.Col
 	res := resTmp.([]*model.User)
 	fc.Result = res
 	return ec.marshalOUser2ᚕᚖpartsᚋgraphᚋmodelᚐUserᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Tenant_containerTypes(ctx context.Context, field graphql.CollectedField, obj *model.Tenant) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Tenant",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Tenant().ContainerTypes(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*model.ContainerType)
+	fc.Result = res
+	return ec.marshalOContainerType2ᚕᚖpartsᚋgraphᚋmodelᚐContainerTypeᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
@@ -2143,6 +2508,45 @@ func (ec *executionContext) ___Type_ofType(ctx context.Context, field graphql.Co
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputNewContainerType(ctx context.Context, obj interface{}) (model.NewContainerType, error) {
+	var it model.NewContainerType
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	for k, v := range asMap {
+		switch k {
+		case "id":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			it.ID, err = ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "tenantId":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tenantId"))
+			it.TenantID, err = ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "description":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			it.Description, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputNewTenant(ctx context.Context, obj interface{}) (model.NewTenant, error) {
 	var it model.NewTenant
 	asMap := map[string]interface{}{}
@@ -2221,6 +2625,57 @@ func (ec *executionContext) unmarshalInputNewUser(ctx context.Context, obj inter
 
 // region    **************************** object.gotpl ****************************
 
+var containerTypeImplementors = []string{"ContainerType"}
+
+func (ec *executionContext) _ContainerType(ctx context.Context, sel ast.SelectionSet, obj *model.ContainerType) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, containerTypeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ContainerType")
+		case "id":
+			out.Values[i] = ec._ContainerType_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "tenant":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ContainerType_tenant(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "createdAt":
+			out.Values[i] = ec._ContainerType_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "description":
+			out.Values[i] = ec._ContainerType_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -2243,6 +2698,11 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			}
 		case "createUser":
 			out.Values[i] = ec._Mutation_createUser(ctx, field)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "createContainerType":
+			out.Values[i] = ec._Mutation_createContainerType(ctx, field)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -2300,6 +2760,20 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}
 				return res
 			})
+		case "containerTypes":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_containerTypes(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "__type":
 			out.Values[i] = ec._Query___type(ctx, field)
 		case "__schema":
@@ -2350,6 +2824,17 @@ func (ec *executionContext) _Tenant(ctx context.Context, sel ast.SelectionSet, o
 					}
 				}()
 				res = ec._Tenant_users(ctx, field, obj)
+				return res
+			})
+		case "containerTypes":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Tenant_containerTypes(ctx, field, obj)
 				return res
 			})
 		default:
@@ -2679,6 +3164,64 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) marshalNContainerType2partsᚋgraphᚋmodelᚐContainerType(ctx context.Context, sel ast.SelectionSet, v model.ContainerType) graphql.Marshaler {
+	return ec._ContainerType(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNContainerType2ᚕᚖpartsᚋgraphᚋmodelᚐContainerTypeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ContainerType) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNContainerType2ᚖpartsᚋgraphᚋmodelᚐContainerType(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNContainerType2ᚖpartsᚋgraphᚋmodelᚐContainerType(ctx context.Context, sel ast.SelectionSet, v *model.ContainerType) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._ContainerType(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v interface{}) (string, error) {
 	res, err := graphql.UnmarshalID(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -2692,6 +3235,11 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNNewContainerType2partsᚋgraphᚋmodelᚐNewContainerType(ctx context.Context, v interface{}) (model.NewContainerType, error) {
+	res, err := ec.unmarshalInputNewContainerType(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNNewTenant2partsᚋgraphᚋmodelᚐNewTenant(ctx context.Context, v interface{}) (model.NewTenant, error) {
@@ -3114,6 +3662,53 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 		return graphql.Null
 	}
 	return graphql.MarshalBoolean(*v)
+}
+
+func (ec *executionContext) marshalOContainerType2ᚕᚖpartsᚋgraphᚋmodelᚐContainerTypeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ContainerType) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNContainerType2ᚖpartsᚋgraphᚋmodelᚐContainerType(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v interface{}) (*string, error) {

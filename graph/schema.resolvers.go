@@ -6,47 +6,14 @@ package graph
 import (
 	"context"
 	"errors"
-	"fmt"
 	"parts/graph/generated"
 	"parts/graph/model"
 )
 
-func (r *mutationResolver) CreateTenant(ctx context.Context, input model.NewTenant) (*model.Tenant, error) {
-	return r.Svc.CreateTenant(input)
-}
+func (r *containerTypeResolver) Tenant(ctx context.Context, obj *model.ContainerType) (*model.Tenant, error) {
+	var ids *[]string = &[]string{obj.TenantID}
 
-func (r *mutationResolver) CreateUser(ctx context.Context, input model.NewUser) (*model.User, error) {
-	return r.Svc.CreateUser(input)
-}
-
-func (r *queryResolver) Tenants(ctx context.Context, id *string) ([]*model.Tenant, error) {
-	return r.Svc.ListTenants(id)
-}
-
-func (r *queryResolver) Users(ctx context.Context, id *string) ([]*model.User, error) {
-	var ids *[]string
-
-	if id != nil {
-		ids = &[]string{*id}
-	}
-	return r.Svc.ListUsers(ids)
-}
-
-func (r *tenantResolver) Users(ctx context.Context, obj *model.Tenant) ([]*model.User, error) {
-	fmt.Println(obj)
-
-	users, err := r.Svc.ListUsers(&obj.UserIDs)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return users, nil
-}
-
-func (r *userResolver) Tenant(ctx context.Context, obj *model.User) (*model.Tenant, error) {
-	tenantId := obj.TenantID
-	tenants, err := r.Svc.ListTenants(&tenantId)
+	tenants, err := r.Svc.ListTenants(ctx, ids)
 
 	if err != nil {
 		return nil, err
@@ -58,6 +25,73 @@ func (r *userResolver) Tenant(ctx context.Context, obj *model.User) (*model.Tena
 
 	return tenants[0], nil
 }
+
+func (r *mutationResolver) CreateTenant(ctx context.Context, input model.NewTenant) (*model.Tenant, error) {
+	return r.Svc.CreateTenant(ctx, input)
+}
+
+func (r *mutationResolver) CreateUser(ctx context.Context, input model.NewUser) (*model.User, error) {
+	return r.Svc.CreateUser(ctx, input)
+}
+
+func (r *mutationResolver) CreateContainerType(ctx context.Context, input model.NewContainerType) (*model.ContainerType, error) {
+	return r.Svc.CreateContainerType(ctx, input)
+}
+
+func (r *queryResolver) Tenants(ctx context.Context, id *string) ([]*model.Tenant, error) {
+	var ids *[]string
+
+	if id != nil {
+		ids = &[]string{*id}
+	}
+
+	return r.Svc.ListTenants(ctx, ids)
+}
+
+func (r *queryResolver) Users(ctx context.Context, id *string) ([]*model.User, error) {
+	var ids *[]string
+
+	if id != nil {
+		ids = &[]string{*id}
+	}
+	return r.Svc.ListUsers(ctx, ids)
+}
+
+func (r *queryResolver) ContainerTypes(ctx context.Context, id *string) ([]*model.ContainerType, error) {
+	var ids *[]string
+
+	if id != nil {
+		ids = &[]string{*id}
+	}
+	return r.Svc.ListContainerTypes(ctx, ids)
+}
+
+func (r *tenantResolver) Users(ctx context.Context, obj *model.Tenant) ([]*model.User, error) {
+	return r.Svc.ListUsers(ctx, &obj.UserIDs)
+}
+
+func (r *tenantResolver) ContainerTypes(ctx context.Context, obj *model.Tenant) ([]*model.ContainerType, error) {
+	return r.Svc.ListContainerTypes(ctx, &obj.ContainerTypeIDs)
+}
+
+func (r *userResolver) Tenant(ctx context.Context, obj *model.User) (*model.Tenant, error) {
+	var ids *[]string = &[]string{obj.TenantID}
+
+	tenants, err := r.Svc.ListTenants(ctx, ids)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(tenants) == 0 {
+		return nil, errors.New("Tenant not found")
+	}
+
+	return tenants[0], nil
+}
+
+// ContainerType returns generated.ContainerTypeResolver implementation.
+func (r *Resolver) ContainerType() generated.ContainerTypeResolver { return &containerTypeResolver{r} }
 
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
@@ -71,6 +105,7 @@ func (r *Resolver) Tenant() generated.TenantResolver { return &tenantResolver{r}
 // User returns generated.UserResolver implementation.
 func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
 
+type containerTypeResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type tenantResolver struct{ *Resolver }

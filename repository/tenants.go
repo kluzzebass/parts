@@ -7,7 +7,7 @@ import (
 	"parts/graph/model"
 )
 
-func (repo *Repository) CreateTenant(nt model.NewTenant) (*model.Tenant, error) {
+func (repo *Repository) CreateTenant(ctx context.Context, nt model.NewTenant) (*model.Tenant, error) {
 	sql := `
 		INSERT INTO
 			tenant
@@ -20,15 +20,16 @@ func (repo *Repository) CreateTenant(nt model.NewTenant) (*model.Tenant, error) 
 			COALESCE($1, gen_random_uuid()),
 			$2
 		)
+		ON CONFLICT (tenant_id) DO UPDATE
+		SET
+			name = EXCLUDED.name
 		RETURNING tenant_id, created_at::text, name
 	`
 	var id string
 	var createdAt string
 	var name string
 
-	fmt.Println("tenant_id =", *nt.ID)
-
-	err := repo.pool.QueryRow(context.TODO(), sql, nt.ID, nt.Name).Scan(&id, &createdAt, &name)
+	err := repo.pool.QueryRow(ctx, sql, nt.ID, nt.Name).Scan(&id, &createdAt, &name)
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
@@ -42,25 +43,68 @@ func (repo *Repository) CreateTenant(nt model.NewTenant) (*model.Tenant, error) 
 	}, err
 }
 
-func (repo *Repository) ListTenants(id *string) ([]*model.Tenant, error) {
+func (repo *Repository) ListTenants(ctx context.Context, ids *[]string) ([]*model.Tenant, error) {
 	sql := `
-		SELECT
-			t.tenant_id AS id,
-			t.created_at::text,
-			t.name,
-			array_agg(u.user_id) as users
+		WITH
+		relevant_tenants AS (
+			SELECT
+			t.tenant_id,
+			t.created_at,
+			t.name
 		FROM
 			tenant t
-			JOIN "user" u USING (tenant_id)
 		WHERE
-			$1::uuid IS NULL
-			OR ($1::uuid IS NOT NULL AND t.tenant_id = $1::uuid)
-		GROUP BY
-			t.tenant_id
+			$1::uuid[] IS NULL
+			OR ($1::uuid[] IS NOT NULL AND t.tenant_id = ANY ($1::uuid[]))
+		),
+		relevant_users AS (
+			SELECT
+				t.tenant_id,
+				array_agg(u.user_id) as users
+			FROM
+				tenant t
+				JOIN "user" u USING (tenant_id)
+			GROUP BY
+				t.tenant_id
+		),
+		relevant_container_types AS (
+			SELECT
+				t.tenant_id,
+				array_agg(ct.container_type_id) as container_types
+			FROM
+				tenant t
+				JOIN container_type ct USING (tenant_id)
+			GROUP BY
+				t.tenant_id
+		),
+		relevant_component_types AS (
+			SELECT
+				t.tenant_id,
+				array_agg(ct.component_type_id) as component_types
+			FROM
+				tenant t
+				JOIN component_type ct USING (tenant_id)
+			GROUP BY
+				t.tenant_id
+		)
+		SELECT
+			rt.tenant_id AS id,
+			rt.created_at::text,
+			rt.name,
+			COALESCE(ru.users, ARRAY[]::uuid[]) AS users,
+			COALESCE(rcnt.container_types, ARRAY[]::uuid[]) as container_types
+			COALESCE(rcmt.component_types, ARRAY[]::uuid[]) as component_types
+		FROM
+			relevant_tenants rt
+			LEFT JOIN relevant_users ru USING (tenant_id)
+			LEFT JOIN relevant_container_types rcnt USING (tenant_id)
+			LEFT JOIN relevant_component_types rcmt USING (tenant_id)
 	`
-	rows, err := repo.pool.Query(context.TODO(), sql, id)
+
+	rows, err := repo.pool.Query(ctx, sql, ids)
 
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Query failed: %v\n", err)
 		return nil, err
 	}
 
@@ -73,21 +117,21 @@ func (repo *Repository) ListTenants(id *string) ([]*model.Tenant, error) {
 		var createdAt string
 		var name string
 		var users []string
-		err := rows.Scan(&id, &createdAt, &name, &users)
+		var containerTypes []string
+
+		err := rows.Scan(&id, &createdAt, &name, &users, &containerTypes)
+
 		if err != nil {
 			return nil, err
 		}
 
 		tenants = append(tenants, &model.Tenant{
-			ID:        id,
-			CreatedAt: createdAt,
-			Name:      name,
-			UserIDs:   users,
+			ID:               id,
+			CreatedAt:        createdAt,
+			Name:             name,
+			UserIDs:          users,
+			ContainerTypeIDs: containerTypes,
 		})
-	}
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
 	}
 
 	return tenants, err
