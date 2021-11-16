@@ -92,7 +92,7 @@ func (repo *Repository) ListTenants(ctx context.Context, ids *[]string) ([]*mode
 			rt.created_at::text,
 			rt.name,
 			COALESCE(ru.users, ARRAY[]::uuid[]) AS users,
-			COALESCE(rcnt.container_types, ARRAY[]::uuid[]) as container_types
+			COALESCE(rcnt.container_types, ARRAY[]::uuid[]) as container_types,
 			COALESCE(rcmt.component_types, ARRAY[]::uuid[]) as component_types
 		FROM
 			relevant_tenants rt
@@ -118,8 +118,9 @@ func (repo *Repository) ListTenants(ctx context.Context, ids *[]string) ([]*mode
 		var name string
 		var users []string
 		var containerTypes []string
+		var componentTypes []string
 
-		err := rows.Scan(&id, &createdAt, &name, &users, &containerTypes)
+		err := rows.Scan(&id, &createdAt, &name, &users, &containerTypes, &componentTypes)
 
 		if err != nil {
 			return nil, err
@@ -131,6 +132,7 @@ func (repo *Repository) ListTenants(ctx context.Context, ids *[]string) ([]*mode
 			Name:             name,
 			UserIDs:          users,
 			ContainerTypeIDs: containerTypes,
+			ComponentTypeIDs: componentTypes,
 		})
 	}
 

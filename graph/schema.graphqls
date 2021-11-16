@@ -8,7 +8,7 @@ type Query {
   users(id: ID): [User!]!
   containerTypes(id: ID): [ContainerType!]!
   # containers: [Container!]!
-  # componentTypes: [ComponentType!]!
+  componentTypes(id: ID): [ComponentType!]!
   # components: [Component!]!
 }
 
@@ -16,9 +16,8 @@ type Mutation {
   createTenant(input: NewTenant!): Tenant!
   createUser(input: NewUser!): User!
   createContainerType(input: NewContainerType!): ContainerType!
-  # createContainerType(input: NewContainerType!): ContainerType!
   # createContainer(input: NewContainer!): Container!
-  # createComponentType(input: NewComponentType!): ComponentType!
+  createComponentType(input: NewComponentType!): ComponentType!
   # createComponent(input: NewComponent!): Component!
   # createQuantity(input: NewQuantity!): Quantity!
 }
@@ -29,6 +28,7 @@ type Tenant {
   name: String!
   users: [User!]
   containerTypes: [ContainerType!]
+  componentTypes: [ComponentType!]
 }
 
 input NewTenant {
@@ -78,18 +78,19 @@ input NewContainerType{
 #   description: String!
 # }
 
-# type ComponentType {
-#   id: ID!
-#   tenant: Tenant!
-#   createdAt: String!
-#   description: String!
-#   components: [Component!]
-# }
+type ComponentType {
+  id: ID!
+  tenant: Tenant!
+  createdAt: String!
+  description: String!
+#  components: [Component!]
+}
 
-# input NewComponentType {
-#   tenant: ID!
-#   description: String!
-# }
+input NewComponentType {
+  id: ID
+  tenantId: ID!
+  description: String!
+}
 
 # type Component {
 #   id: ID!

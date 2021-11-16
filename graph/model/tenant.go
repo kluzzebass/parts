@@ -6,4 +6,5 @@ type Tenant struct {
 	Name             string   `json:"name"`
 	UserIDs          []string `json:"userIds"`
 	ContainerTypeIDs []string `json:"containerTypeIds"`
+	ComponentTypeIDs []string `json:"componentTypeIds"`
 }

@@ -2,6 +2,12 @@
 
 package model
 
+type NewComponentType struct {
+	ID          *string `json:"id"`
+	TenantID    string  `json:"tenantId"`
+	Description string  `json:"description"`
+}
+
 type NewContainerType struct {
 	ID          *string `json:"id"`
 	TenantID    string  `json:"tenantId"`
