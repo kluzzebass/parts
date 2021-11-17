@@ -2,10 +2,9 @@ package repository
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"parts/graph/model"
-	"time"
+
+	"github.com/randallmlough/pgxscan"
 )
 
 func (repo *Repository) UpsertComponent(ctx context.Context, input model.NewComponent) (*model.Component, error) {
@@ -32,26 +31,14 @@ func (repo *Repository) UpsertComponent(ctx context.Context, input model.NewComp
 		RETURNING component_id, tenant_id, component_type_id, created_at, description
 	`
 
-	var id string
-	var tenantId string
-	var componentTypeId string
-	var createdAt time.Time
-	var description string
+	rows, _ := repo.pool.Query(ctx, sql, input.ID, input.TenantID, input.ComponentTypeID, input.Description)
 
-	err := repo.pool.QueryRow(ctx, sql, input.ID, input.TenantID, input.ComponentTypeID, input.Description).Scan(&id, &tenantId, &componentTypeId, &createdAt, &description)
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
+	var dst *model.Component
+	if err := pgxscan.NewScanner(rows).Scan(&dst); err != nil {
 		return nil, err
 	}
 
-	return &model.Component{
-		ID:              id,
-		TenantID:        tenantId,
-		ComponentTypeID: componentTypeId,
-		CreatedAt:       createdAt,
-		Description:     description,
-	}, err
+	return dst, nil
 }
 
 func (repo *Repository) ListComponents(ctx context.Context, ids *[]string) ([]*model.Component, error) {
@@ -83,7 +70,7 @@ func (repo *Repository) ListComponents(ctx context.Context, ids *[]string) ([]*m
 		SELECT
 			rc.component_id,
 			rc.tenant_id,
-			rc.component_type_id AS id,
+			rc.component_type_id,
 			rc.created_at,
 			rc.description,
 			COALESCE(rq.quantities, ARRAY[]::uuid[]) AS quantities
@@ -92,39 +79,12 @@ func (repo *Repository) ListComponents(ctx context.Context, ids *[]string) ([]*m
 			LEFT JOIN relevant_quantities rq USING (component_id)
 	`
 
-	rows, err := repo.pool.Query(ctx, sql, ids)
+	rows, _ := repo.pool.Query(ctx, sql, ids)
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Query failed: %v\n", err)
+	var dst []*model.Component
+	if err := pgxscan.NewScanner(rows, pgxscan.ErrNoRowsQuery(false)).Scan(&dst); err != nil {
 		return nil, err
 	}
 
-	defer rows.Close()
-
-	var components []*model.Component
-
-	for rows.Next() {
-		var id string
-		var tenantId string
-		var componentTypeId string
-		var createdAt time.Time
-		var description string
-		var quantities []string
-
-		err := rows.Scan(&id, &tenantId, &componentTypeId, &createdAt, &description, &quantities)
-		if err != nil {
-			return nil, err
-		}
-
-		components = append(components, &model.Component{
-			ID:              id,
-			TenantID:        tenantId,
-			ComponentTypeID: componentTypeId,
-			CreatedAt:       createdAt,
-			Description:     description,
-			QuantityIDs:     quantities,
-		})
-	}
-
-	return components, err
+	return dst, nil
 }

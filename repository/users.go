@@ -2,10 +2,9 @@ package repository
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"parts/graph/model"
-	"time"
+
+	"github.com/randallmlough/pgxscan"
 )
 
 func (repo *Repository) UpsertUser(ctx context.Context, input model.NewUser) (*model.User, error) {
@@ -29,30 +28,20 @@ func (repo *Repository) UpsertUser(ctx context.Context, input model.NewUser) (*m
 		RETURNING user_id, tenant_id, created_at, name
 	`
 
-	var id string
-	var tenantId string
-	var createdAt time.Time
-	var name string
+	rows, _ := repo.pool.Query(ctx, sql, input.ID, input.TenantID, input.Name)
 
-	err := repo.pool.QueryRow(ctx, sql, input.ID, input.TenantID, input.Name).Scan(&id, &tenantId, &createdAt, &name)
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
+	var dst *model.User
+	if err := pgxscan.NewScanner(rows).Scan(&dst); err != nil {
 		return nil, err
 	}
 
-	return &model.User{
-		ID:        id,
-		TenantID:  tenantId,
-		CreatedAt: createdAt,
-		Name:      name,
-	}, err
+	return dst, nil
 }
 
 func (repo *Repository) ListUsers(ctx context.Context, ids *[]string) ([]*model.User, error) {
 	sql := `
 		SELECT
-			user_id AS id,
+			user_id,
 			tenant_id,
 			created_at,
 			name
@@ -63,34 +52,12 @@ func (repo *Repository) ListUsers(ctx context.Context, ids *[]string) ([]*model.
 			OR ($1::uuid[] IS NOT NULL AND user_id = ANY ($1::uuid[]))
 	`
 
-	rows, err := repo.pool.Query(ctx, sql, ids)
+	rows, _ := repo.pool.Query(ctx, sql, ids)
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Query failed: %v\n", err)
+	var dst []*model.User
+	if err := pgxscan.NewScanner(rows, pgxscan.ErrNoRowsQuery(false)).Scan(&dst); err != nil {
 		return nil, err
 	}
 
-	defer rows.Close()
-
-	var users []*model.User
-
-	for rows.Next() {
-		var id string
-		var tenantId string
-		var createdAt time.Time
-		var name string
-		err := rows.Scan(&id, &tenantId, &createdAt, &name)
-		if err != nil {
-			return nil, err
-		}
-
-		users = append(users, &model.User{
-			ID:        id,
-			TenantID:  tenantId,
-			CreatedAt: createdAt,
-			Name:      name,
-		})
-	}
-
-	return users, err
+	return dst, nil
 }

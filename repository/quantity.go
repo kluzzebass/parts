@@ -2,10 +2,9 @@ package repository
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"parts/graph/model"
-	"time"
+
+	"github.com/randallmlough/pgxscan"
 )
 
 func (repo *Repository) UpsertQuantity(ctx context.Context, input model.NewQuantity) (*model.Quantity, error) {
@@ -31,26 +30,14 @@ func (repo *Repository) UpsertQuantity(ctx context.Context, input model.NewQuant
 		RETURNING quantity_id, container_id, component_id, created_at, quantity
 	`
 
-	var id string
-	var containerId string
-	var componentId string
-	var createdAt time.Time
-	var quantity int
+	rows, _ := repo.pool.Query(ctx, sql, input.ID, input.ContainerID, input.ComponentID, input.Quantity)
 
-	err := repo.pool.QueryRow(ctx, sql, input.ID, input.ContainerID, input.ComponentID, input.Quantity).Scan(&id, &containerId, &componentId, &createdAt, &quantity)
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
+	var dst *model.Quantity
+	if err := pgxscan.NewScanner(rows).Scan(&dst); err != nil {
 		return nil, err
 	}
 
-	return &model.Quantity{
-		ID:          id,
-		ContainerID: containerId,
-		ComponentID: componentId,
-		CreatedAt:   createdAt,
-		Quantity:    quantity,
-	}, err
+	return dst, nil
 }
 
 func (repo *Repository) ListQuantities(ctx context.Context, ids *[]string) ([]*model.Quantity, error) {
@@ -70,7 +57,7 @@ func (repo *Repository) ListQuantities(ctx context.Context, ids *[]string) ([]*m
 				OR ($1::uuid[] IS NOT NULL AND q.quantity_id = ANY ($1::uuid[]))
 		)
 		SELECT
-			rq.quantity_id AS id,
+			rq.quantity_id,
 			rq.container_id,
 			rq.component_id,
 			rq.created_at,
@@ -79,37 +66,12 @@ func (repo *Repository) ListQuantities(ctx context.Context, ids *[]string) ([]*m
 			relevant_quantities rq
 	`
 
-	rows, err := repo.pool.Query(ctx, sql, ids)
+	rows, _ := repo.pool.Query(ctx, sql, ids)
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Query failed: %v\n", err)
+	var dst []*model.Quantity
+	if err := pgxscan.NewScanner(rows, pgxscan.ErrNoRowsQuery(false)).Scan(&dst); err != nil {
 		return nil, err
 	}
 
-	defer rows.Close()
-
-	var quantities []*model.Quantity
-
-	for rows.Next() {
-		var id string
-		var containerId string
-		var componentId string
-		var createdAt time.Time
-		var quantity int
-
-		err := rows.Scan(&id, &containerId, &componentId, &createdAt, &quantity)
-		if err != nil {
-			return nil, err
-		}
-
-		quantities = append(quantities, &model.Quantity{
-			ID:          id,
-			ContainerID: containerId,
-			ComponentID: componentId,
-			CreatedAt:   createdAt,
-			Quantity:    quantity,
-		})
-	}
-
-	return quantities, err
+	return dst, nil
 }

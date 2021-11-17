@@ -2,10 +2,9 @@ package repository
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"parts/graph/model"
-	"time"
+
+	"github.com/randallmlough/pgxscan"
 )
 
 func (repo *Repository) UpsertTenant(ctx context.Context, input model.NewTenant) (*model.Tenant, error) {
@@ -26,22 +25,14 @@ func (repo *Repository) UpsertTenant(ctx context.Context, input model.NewTenant)
 			name = EXCLUDED.name
 		RETURNING tenant_id, created_at, name
 	`
-	var id string
-	var createdAt time.Time
-	var name string
+	rows, _ := repo.pool.Query(ctx, sql, input.ID, input.Name)
 
-	err := repo.pool.QueryRow(ctx, sql, input.ID, input.Name).Scan(&id, &createdAt, &name)
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
+	var dst *model.Tenant
+	if err := pgxscan.NewScanner(rows).Scan(&dst); err != nil {
 		return nil, err
 	}
 
-	return &model.Tenant{
-		ID:        id,
-		CreatedAt: createdAt,
-		Name:      name,
-	}, err
+	return dst, nil
 }
 
 func (repo *Repository) ListTenants(ctx context.Context, ids *[]string) ([]*model.Tenant, error) {
@@ -89,7 +80,7 @@ func (repo *Repository) ListTenants(ctx context.Context, ids *[]string) ([]*mode
 				t.tenant_id
 		)
 		SELECT
-			rt.tenant_id AS id,
+			rt.tenant_id,
 			rt.created_at,
 			rt.name,
 			COALESCE(ru.users, ARRAY[]::uuid[]) AS users,
@@ -102,40 +93,12 @@ func (repo *Repository) ListTenants(ctx context.Context, ids *[]string) ([]*mode
 			LEFT JOIN relevant_component_types rcmt USING (tenant_id)
 	`
 
-	rows, err := repo.pool.Query(ctx, sql, ids)
+	rows, _ := repo.pool.Query(ctx, sql, ids)
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Query failed: %v\n", err)
+	var dst []*model.Tenant
+	if err := pgxscan.NewScanner(rows, pgxscan.ErrNoRowsQuery(false)).Scan(&dst); err != nil {
 		return nil, err
 	}
 
-	defer rows.Close()
-
-	var tenants []*model.Tenant
-
-	for rows.Next() {
-		var id string
-		var createdAt time.Time
-		var name string
-		var users []string
-		var containerTypes []string
-		var componentTypes []string
-
-		err := rows.Scan(&id, &createdAt, &name, &users, &containerTypes, &componentTypes)
-
-		if err != nil {
-			return nil, err
-		}
-
-		tenants = append(tenants, &model.Tenant{
-			ID:               id,
-			CreatedAt:        createdAt,
-			Name:             name,
-			UserIDs:          users,
-			ContainerTypeIDs: containerTypes,
-			ComponentTypeIDs: componentTypes,
-		})
-	}
-
-	return tenants, err
+	return dst, nil
 }
