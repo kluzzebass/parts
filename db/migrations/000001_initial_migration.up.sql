@@ -78,6 +78,11 @@ CREATE TABLE quantity (
 CREATE INDEX quantity_container_id ON quantity (container_id);
 CREATE INDEX quantity_component_id ON quantity (component_id);
 
+CREATE TABLE quantity_change (
+  quantity_event_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  quantity_id uuid NOT NULL REFERENCES quantity (quantity_id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  quantity int NOT NULL default 0 CHECK (quantity >= 0)
+);
 
-
-
+CREATE INDEX quantity_change_quantity_id ON quantity_change (quantity_id);
