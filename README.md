@@ -29,5 +29,6 @@ I don't know what to do here, but it's probably really difficult and/or annoying
 
 # Linux
 
-If you'ere using Linux, I bet you can figure it out by looking at the MacOS instructions.
+If you're using Linux, I bet you're 31337 enough to figure it out by looking at
+the MacOS instructions.
 
