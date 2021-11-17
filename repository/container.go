@@ -9,29 +9,65 @@ import (
 
 func (repo *Repository) UpsertContainer(ctx context.Context, input model.NewContainer) (*model.Container, error) {
 	sql := `
-		INSERT INTO
-			container
-		(
-			container_id,
-			tenant_id,
-			parent_container_id,
-			container_type_id,
-			description
+	WITH
+	inserted_rows AS (
+			INSERT INTO
+				container
+			(
+				container_id,
+				tenant_id,
+				parent_container_id,
+				container_type_id,
+				description
+			)
+			VALUES
+			(
+				COALESCE($1, gen_random_uuid()),
+				$2,
+				$3,
+				$4,
+				$5
+			)
+			ON CONFLICT (container_id) DO UPDATE
+			SET
+				parent_container_id = EXCLUDED.parent_container_id,
+				container_type_id = EXCLUDED.container_type_id,
+				description = EXCLUDED.description
+			WHERE
+				container.parent_container_id IS DISTINCT FROM EXCLUDED.parent_container_id
+				OR container.container_type_id IS DISTINCT FROM EXCLUDED.container_type_id
+				OR container.description IS DISTINCT FROM EXCLUDED.description
+			RETURNING
+				container_id,
+				tenant_id,
+				parent_container_id,
+				container_type_id,
+				created_at,
+				description
+		),
+		selected_rows AS (
+			SELECT
+				container_id,
+				tenant_id,
+				parent_container_id,
+				container_type_id,
+				created_at,
+				description
+			FROM
+				container
+			WHERE
+				container_id = $1
 		)
-		VALUES
-		(
-			COALESCE($1, gen_random_uuid()),
-			$2,
-			$3,
-			$4,
-			$5
-		)
-		ON CONFLICT (container_id) DO UPDATE
-		SET
-			parent_container_id = EXCLUDED.parent_container_id,
-			container_type_id = EXCLUDED.container_type_id,
-			description = EXCLUDED.description
-		RETURNING container_id, tenant_id, parent_container_id, container_type_id, created_at, description
+		SELECT
+			COALESCE(ir.container_id, sr.container_id) AS container_id,
+			COALESCE(ir.tenant_id, sr.tenant_id) AS tenant_id,
+			COALESCE(ir.parent_container_id, sr.parent_container_id) AS parent_container_id,
+			COALESCE(ir.container_type_id, sr.container_type_id) AS container_type_id,
+			COALESCE(ir.created_at, sr.created_at) AS created_at,
+			COALESCE(ir.description, sr.description) AS description
+		FROM
+			inserted_rows ir
+			FULL JOIN selected_rows sr USING (container_id)
 	`
 
 	rows, _ := repo.pool.Query(ctx, sql, input.ID, input.TenantID, input.ParentID, input.ContainerTypeID, input.Description)

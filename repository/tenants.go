@@ -9,22 +9,47 @@ import (
 
 func (repo *Repository) UpsertTenant(ctx context.Context, input model.NewTenant) (*model.Tenant, error) {
 	sql := `
-		INSERT INTO
-			tenant
-		(
-			tenant_id,
-			name
+		WITH
+		inserted_rows AS (
+			INSERT INTO
+				tenant
+			(
+				tenant_id,
+				name
+			)
+			VALUES
+			(
+				COALESCE($1, gen_random_uuid()),
+				$2
+			)
+			ON CONFLICT (tenant_id) DO UPDATE
+			SET
+				name = EXCLUDED.name
+			WHERE
+				tenant.name IS DISTINCT FROM EXCLUDED.name
+			RETURNING
+				tenant_id,
+				created_at,
+				name
+		),
+		selected_rows AS (
+			SELECT
+				tenant_id,
+				created_at,
+				name
+			FROM
+				tenant
+			WHERE
+				tenant_id = $1
 		)
-		VALUES
-		(
-			COALESCE($1, gen_random_uuid()),
-			$2
-		)
-		ON CONFLICT (tenant_id) DO UPDATE
-		SET
-			name = EXCLUDED.name
-		RETURNING tenant_id, created_at, name
-	`
+		SELECT
+			COALESCE(ir.tenant_id, sr.tenant_id) AS tenant_id,
+			COALESCE(ir.created_at, sr.created_at) AS created_at,
+			COALESCE(ir.name, sr.name) AS name
+		FROM
+			inserted_rows ir
+			FULL JOIN selected_rows sr USING (tenant_id)
+`
 	rows, _ := repo.pool.Query(ctx, sql, input.ID, input.Name)
 
 	var dst *model.Tenant

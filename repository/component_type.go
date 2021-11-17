@@ -9,23 +9,51 @@ import (
 
 func (repo *Repository) UpsertComponentType(ctx context.Context, input model.NewComponentType) (*model.ComponentType, error) {
 	sql := `
-		INSERT INTO
-			component_type
-		(
-			component_type_id,
-			tenant_id,
-			description
+		WITH
+		inserted_rows AS (
+			INSERT INTO
+				component_type
+			(
+				component_type_id,
+				tenant_id,
+				description
+			)
+			VALUES
+			(
+				COALESCE($1, gen_random_uuid()),
+				$2,
+				$3
+			)
+			ON CONFLICT (component_type_id) DO UPDATE
+			SET
+				description = EXCLUDED.description
+			WHERE
+				component_type.description IS DISTINCT FROM EXCLUDED.description
+			RETURNING
+				component_type_id,
+				tenant_id,
+				created_at,
+				description
+		),
+		selected_rows AS (
+			SELECT
+				component_type_id,
+				tenant_id,
+				created_at,
+				description
+			FROM
+				component_type
+			WHERE
+				component_type_id = $1
 		)
-		VALUES
-		(
-			COALESCE($1, gen_random_uuid()),
-			$2,
-			$3
-		)
-		ON CONFLICT (component_type_id) DO UPDATE
-		SET
-			description = EXCLUDED.description
-		RETURNING component_type_id, tenant_id, created_at, description
+		SELECT
+			COALESCE(ir.component_type_id, sr.component_type_id) AS component_type_id,
+			COALESCE(ir.tenant_id, sr.tenant_id) AS tenant_id,
+			COALESCE(ir.created_at, sr.created_at) AS created_at,
+			COALESCE(ir.description, sr.description) AS description
+		FROM
+			inserted_rows ir
+			FULL JOIN selected_rows sr USING (component_type_id)
 	`
 
 	rows, _ := repo.pool.Query(ctx, sql, input.ID, input.TenantID, input.Description)

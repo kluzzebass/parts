@@ -9,23 +9,51 @@ import (
 
 func (repo *Repository) UpsertContainerType(ctx context.Context, input model.NewContainerType) (*model.ContainerType, error) {
 	sql := `
-		INSERT INTO
-			container_type
-		(
-			container_type_id,
-			tenant_id,
-			description
+		WITH
+		inserted_rows AS (
+			INSERT INTO
+				container_type
+			(
+				container_type_id,
+				tenant_id,
+				description
+			)
+			VALUES
+			(
+				COALESCE($1, gen_random_uuid()),
+				$2,
+				$3
+			)
+			ON CONFLICT (container_type_id) DO UPDATE
+			SET
+				description = EXCLUDED.description
+			WHERE
+				container_type.description IS DISTINCT FROM EXCLUDED.description
+			RETURNING
+				container_type_id,
+				tenant_id,
+				created_at,
+				description
+		),
+		selected_rows AS (
+			SELECT
+				container_type_id,
+				tenant_id,
+				created_at,
+				description
+			FROM
+				container_type
+			WHERE
+				container_type_id = $1
 		)
-		VALUES
-		(
-			COALESCE($1, gen_random_uuid()),
-			$2,
-			$3
-		)
-		ON CONFLICT (container_type_id) DO UPDATE
-		SET
-			description = EXCLUDED.description
-		RETURNING container_type_id, tenant_id, created_at, description
+		SELECT
+			COALESCE(ir.container_type_id, sr.container_type_id) AS container_type_id,
+			COALESCE(ir.tenant_id, sr.tenant_id) AS tenant_id,
+			COALESCE(ir.created_at, sr.created_at) AS created_at,
+			COALESCE(ir.description, sr.description) AS description
+		FROM
+			inserted_rows ir
+			FULL JOIN selected_rows sr USING (container_type_id)
 	`
 
 	rows, _ := repo.pool.Query(ctx, sql, input.ID, input.TenantID, input.Description)
