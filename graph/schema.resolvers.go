@@ -206,6 +206,22 @@ func (r *quantityResolver) Component(ctx context.Context, obj *model.Quantity) (
 	return components[0], nil
 }
 
+func (r *quantityChangeResolver) Quantity(ctx context.Context, obj *model.QuantityChange) (*model.Quantity, error) {
+	var ids *[]string = &[]string{obj.QuantityID}
+
+	quantities, err := r.Svc.ListQuantities(ctx, ids)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(quantities) == 0 {
+		return nil, errors.New("Quantity not found")
+	}
+
+	return quantities[0], nil
+}
+
 func (r *queryResolver) Tenants(ctx context.Context, id *string) ([]*model.Tenant, error) {
 	var ids *[]string
 
@@ -270,6 +286,15 @@ func (r *queryResolver) Quantities(ctx context.Context, id *string) ([]*model.Qu
 	return r.Svc.ListQuantities(ctx, ids)
 }
 
+func (r *queryResolver) QuantityChanges(ctx context.Context, id *string) ([]*model.QuantityChange, error) {
+	var ids *[]string
+
+	if id != nil {
+		ids = &[]string{*id}
+	}
+	return r.Svc.ListQuantityChanges(ctx, ids)
+}
+
 func (r *tenantResolver) Users(ctx context.Context, obj *model.Tenant) ([]*model.User, error) {
 	return r.Svc.ListUsers(ctx, &obj.UserIDs)
 }
@@ -316,6 +341,11 @@ func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResol
 // Quantity returns generated.QuantityResolver implementation.
 func (r *Resolver) Quantity() generated.QuantityResolver { return &quantityResolver{r} }
 
+// QuantityChange returns generated.QuantityChangeResolver implementation.
+func (r *Resolver) QuantityChange() generated.QuantityChangeResolver {
+	return &quantityChangeResolver{r}
+}
+
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
@@ -331,6 +361,7 @@ type containerResolver struct{ *Resolver }
 type containerTypeResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type quantityResolver struct{ *Resolver }
+type quantityChangeResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type tenantResolver struct{ *Resolver }
 type userResolver struct{ *Resolver }

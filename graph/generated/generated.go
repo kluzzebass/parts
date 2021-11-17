@@ -42,6 +42,7 @@ type ResolverRoot interface {
 	ContainerType() ContainerTypeResolver
 	Mutation() MutationResolver
 	Quantity() QuantityResolver
+	QuantityChange() QuantityChangeResolver
 	Query() QueryResolver
 	Tenant() TenantResolver
 	User() UserResolver
@@ -98,20 +99,29 @@ type ComplexityRoot struct {
 	}
 
 	Quantity struct {
+		Amount    func(childComplexity int) int
 		Component func(childComplexity int) int
 		Container func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+	}
+
+	QuantityChange struct {
+		Amount    func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
 		ID        func(childComplexity int) int
 		Quantity  func(childComplexity int) int
 	}
 
 	Query struct {
-		ComponentTypes func(childComplexity int, id *string) int
-		Components     func(childComplexity int, id *string) int
-		ContainerTypes func(childComplexity int, id *string) int
-		Containers     func(childComplexity int, id *string) int
-		Quantities     func(childComplexity int, id *string) int
-		Tenants        func(childComplexity int, id *string) int
-		Users          func(childComplexity int, id *string) int
+		ComponentTypes  func(childComplexity int, id *string) int
+		Components      func(childComplexity int, id *string) int
+		ContainerTypes  func(childComplexity int, id *string) int
+		Containers      func(childComplexity int, id *string) int
+		Quantities      func(childComplexity int, id *string) int
+		QuantityChanges func(childComplexity int, id *string) int
+		Tenants         func(childComplexity int, id *string) int
+		Users           func(childComplexity int, id *string) int
 	}
 
 	Tenant struct {
@@ -169,6 +179,9 @@ type QuantityResolver interface {
 	Container(ctx context.Context, obj *model.Quantity) (*model.Container, error)
 	Component(ctx context.Context, obj *model.Quantity) (*model.Component, error)
 }
+type QuantityChangeResolver interface {
+	Quantity(ctx context.Context, obj *model.QuantityChange) (*model.Quantity, error)
+}
 type QueryResolver interface {
 	Tenants(ctx context.Context, id *string) ([]*model.Tenant, error)
 	Users(ctx context.Context, id *string) ([]*model.User, error)
@@ -177,6 +190,7 @@ type QueryResolver interface {
 	Containers(ctx context.Context, id *string) ([]*model.Container, error)
 	Components(ctx context.Context, id *string) ([]*model.Component, error)
 	Quantities(ctx context.Context, id *string) ([]*model.Quantity, error)
+	QuantityChanges(ctx context.Context, id *string) ([]*model.QuantityChange, error)
 }
 type TenantResolver interface {
 	Users(ctx context.Context, obj *model.Tenant) ([]*model.User, error)
@@ -454,6 +468,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.UpsertUser(childComplexity, args["input"].(model.NewUser)), true
 
+	case "Quantity.amount":
+		if e.complexity.Quantity.Amount == nil {
+			break
+		}
+
+		return e.complexity.Quantity.Amount(childComplexity), true
+
 	case "Quantity.component":
 		if e.complexity.Quantity.Component == nil {
 			break
@@ -468,6 +489,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Quantity.Container(childComplexity), true
 
+	case "Quantity.createdAt":
+		if e.complexity.Quantity.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.Quantity.CreatedAt(childComplexity), true
+
 	case "Quantity.id":
 		if e.complexity.Quantity.ID == nil {
 			break
@@ -475,12 +503,33 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Quantity.ID(childComplexity), true
 
-	case "Quantity.quantity":
-		if e.complexity.Quantity.Quantity == nil {
+	case "QuantityChange.amount":
+		if e.complexity.QuantityChange.Amount == nil {
 			break
 		}
 
-		return e.complexity.Quantity.Quantity(childComplexity), true
+		return e.complexity.QuantityChange.Amount(childComplexity), true
+
+	case "QuantityChange.createdAt":
+		if e.complexity.QuantityChange.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.QuantityChange.CreatedAt(childComplexity), true
+
+	case "QuantityChange.id":
+		if e.complexity.QuantityChange.ID == nil {
+			break
+		}
+
+		return e.complexity.QuantityChange.ID(childComplexity), true
+
+	case "QuantityChange.quantity":
+		if e.complexity.QuantityChange.Quantity == nil {
+			break
+		}
+
+		return e.complexity.QuantityChange.Quantity(childComplexity), true
 
 	case "Query.componentTypes":
 		if e.complexity.Query.ComponentTypes == nil {
@@ -541,6 +590,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.Quantities(childComplexity, args["id"].(*string)), true
+
+	case "Query.quantityChanges":
+		if e.complexity.Query.QuantityChanges == nil {
+			break
+		}
+
+		args, err := ec.field_Query_quantityChanges_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.QuantityChanges(childComplexity, args["id"].(*string)), true
 
 	case "Query.tenants":
 		if e.complexity.Query.Tenants == nil {
@@ -714,6 +775,7 @@ type Query {
   containers(id: ID): [Container!]!
   components(id: ID): [Component!]!
   quantities(id: ID): [Quantity!]!
+  quantityChanges(id: ID): [QuantityChange!]!
 }
 
 type Mutation {
@@ -820,15 +882,24 @@ type Quantity {
   id: ID!
   container: Container!
   component: Component!
-  quantity: Int!
+  createdAt: Time!
+  amount: Int!
 }
 
 input NewQuantity {
   id: ID
   containerId: ID!
   componentId: ID!
-  quantity: Int!
-}`, BuiltIn: false},
+  amount: Int!
+}
+
+type QuantityChange {
+  id: ID!
+  quantity: Quantity!
+  createdAt: Time!
+  amount: Int!
+}
+`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -1017,6 +1088,21 @@ func (ec *executionContext) field_Query_containers_args(ctx context.Context, raw
 }
 
 func (ec *executionContext) field_Query_quantities_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalOID2ᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_quantityChanges_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 *string
@@ -2320,7 +2406,7 @@ func (ec *executionContext) _Quantity_component(ctx context.Context, field graph
 	return ec.marshalNComponent2ᚖpartsᚋgraphᚋmodelᚐComponent(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Quantity_quantity(ctx context.Context, field graphql.CollectedField, obj *model.Quantity) (ret graphql.Marshaler) {
+func (ec *executionContext) _Quantity_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Quantity) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -2338,7 +2424,182 @@ func (ec *executionContext) _Quantity_quantity(ctx context.Context, field graphq
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Quantity, nil
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Quantity_amount(ctx context.Context, field graphql.CollectedField, obj *model.Quantity) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Quantity",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Amount, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _QuantityChange_id(ctx context.Context, field graphql.CollectedField, obj *model.QuantityChange) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "QuantityChange",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _QuantityChange_quantity(ctx context.Context, field graphql.CollectedField, obj *model.QuantityChange) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "QuantityChange",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.QuantityChange().Quantity(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Quantity)
+	fc.Result = res
+	return ec.marshalNQuantity2ᚖpartsᚋgraphᚋmodelᚐQuantity(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _QuantityChange_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.QuantityChange) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "QuantityChange",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _QuantityChange_amount(ctx context.Context, field graphql.CollectedField, obj *model.QuantityChange) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "QuantityChange",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Amount, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2647,6 +2908,48 @@ func (ec *executionContext) _Query_quantities(ctx context.Context, field graphql
 	res := resTmp.([]*model.Quantity)
 	fc.Result = res
 	return ec.marshalNQuantity2ᚕᚖpartsᚋgraphᚋmodelᚐQuantityᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_quantityChanges(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_quantityChanges_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().QuantityChanges(rctx, args["id"].(*string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.QuantityChange)
+	fc.Result = res
+	return ec.marshalNQuantityChange2ᚕᚖpartsᚋgraphᚋmodelᚐQuantityChangeᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -4396,11 +4699,11 @@ func (ec *executionContext) unmarshalInputNewQuantity(ctx context.Context, obj i
 			if err != nil {
 				return it, err
 			}
-		case "quantity":
+		case "amount":
 			var err error
 
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quantity"))
-			it.Quantity, err = ec.unmarshalNInt2int(ctx, v)
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("amount"))
+			it.Amount, err = ec.unmarshalNInt2int(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -4891,8 +5194,64 @@ func (ec *executionContext) _Quantity(ctx context.Context, sel ast.SelectionSet,
 				}
 				return res
 			})
+		case "createdAt":
+			out.Values[i] = ec._Quantity_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "amount":
+			out.Values[i] = ec._Quantity_amount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var quantityChangeImplementors = []string{"QuantityChange"}
+
+func (ec *executionContext) _QuantityChange(ctx context.Context, sel ast.SelectionSet, obj *model.QuantityChange) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, quantityChangeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("QuantityChange")
+		case "id":
+			out.Values[i] = ec._QuantityChange_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
 		case "quantity":
-			out.Values[i] = ec._Quantity_quantity(ctx, field, obj)
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._QuantityChange_quantity(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "createdAt":
+			out.Values[i] = ec._QuantityChange_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "amount":
+			out.Values[i] = ec._QuantityChange_amount(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&invalids, 1)
 			}
@@ -5015,6 +5374,20 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_quantities(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "quantityChanges":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_quantityChanges(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
@@ -5774,6 +6147,60 @@ func (ec *executionContext) marshalNQuantity2ᚖpartsᚋgraphᚋmodelᚐQuantity
 		return graphql.Null
 	}
 	return ec._Quantity(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNQuantityChange2ᚕᚖpartsᚋgraphᚋmodelᚐQuantityChangeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.QuantityChange) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNQuantityChange2ᚖpartsᚋgraphᚋmodelᚐQuantityChange(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNQuantityChange2ᚖpartsᚋgraphᚋmodelᚐQuantityChange(ctx context.Context, sel ast.SelectionSet, v *model.QuantityChange) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._QuantityChange(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {

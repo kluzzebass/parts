@@ -33,7 +33,7 @@ type NewQuantity struct {
 	ID          *string `json:"id"`
 	ContainerID string  `json:"containerId"`
 	ComponentID string  `json:"componentId"`
-	Quantity    int     `json:"quantity"`
+	Amount      int     `json:"amount"`
 }
 
 type NewTenant struct {

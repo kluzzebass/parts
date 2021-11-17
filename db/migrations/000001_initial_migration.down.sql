@@ -1,4 +1,5 @@
 
+DROP TABLE IF EXISTS quantity_change;
 DROP TABLE IF EXISTS quantity;
 DROP TABLE IF EXISTS component;
 DROP TABLE IF EXISTS component_type;

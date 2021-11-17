@@ -12,6 +12,7 @@ type Query {
   containers(id: ID): [Container!]!
   components(id: ID): [Component!]!
   quantities(id: ID): [Quantity!]!
+  quantityChanges(id: ID): [QuantityChange!]!
 }
 
 type Mutation {
@@ -118,12 +119,20 @@ type Quantity {
   id: ID!
   container: Container!
   component: Component!
-  quantity: Int!
+  createdAt: Time!
+  amount: Int!
 }
 
 input NewQuantity {
   id: ID
   containerId: ID!
   componentId: ID!
-  quantity: Int!
+  amount: Int!
+}
+
+type QuantityChange {
+  id: ID!
+  quantity: Quantity!
+  createdAt: Time!
+  amount: Int!
 }

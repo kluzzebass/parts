@@ -17,7 +17,7 @@ func (repo *Repository) UpsertQuantity(ctx context.Context, input model.NewQuant
 				quantity_id,
 				container_id,
 				component_id,
-				quantity
+				amount
 			)
 			VALUES
 			(
@@ -28,15 +28,15 @@ func (repo *Repository) UpsertQuantity(ctx context.Context, input model.NewQuant
 			)
 			ON CONFLICT (quantity_id) DO UPDATE
 			SET
-				quantity = EXCLUDED.quantity
+				amount = EXCLUDED.amount
 			WHERE
-				quantity.quantity IS DISTINCT FROM EXCLUDED.quantity
+				quantity.amount IS DISTINCT FROM EXCLUDED.amount
 			RETURNING
 				quantity_id,
 				container_id,
 				component_id,
 				created_at,
-				quantity
+				amount
 		),
 		selected_rows AS (
 			SELECT
@@ -44,7 +44,7 @@ func (repo *Repository) UpsertQuantity(ctx context.Context, input model.NewQuant
 				container_id,
 				component_id,
 				created_at,
-				quantity
+				amount
 			FROM
 				quantity
 			WHERE
@@ -55,11 +55,11 @@ func (repo *Repository) UpsertQuantity(ctx context.Context, input model.NewQuant
 				quantity_change
 			(
 				quantity_id,
-				quantity
+				amount
 			)
 			SELECT
 				quantity_id,
-				quantity
+				amount
 			FROM
 				inserted_rows
 			RETURNING
@@ -70,13 +70,13 @@ func (repo *Repository) UpsertQuantity(ctx context.Context, input model.NewQuant
 			COALESCE(ir.container_id, sr.container_id) AS container_id,
 			COALESCE(ir.component_id, sr.component_id) AS component_id,
 			COALESCE(ir.created_at, sr.created_at) AS created_at,
-			COALESCE(ir.quantity, sr.quantity) AS quantity
+			COALESCE(ir.amount, sr.amount) AS amount
 		FROM
 			inserted_rows ir
 			FULL JOIN selected_rows sr USING (quantity_id)
 	`
 
-	rows, _ := repo.pool.Query(ctx, sql, input.ID, input.ContainerID, input.ComponentID, input.Quantity)
+	rows, _ := repo.pool.Query(ctx, sql, input.ID, input.ContainerID, input.ComponentID, input.Amount)
 
 	var dst *model.Quantity
 	if err := pgxscan.NewScanner(rows).Scan(&dst); err != nil {
@@ -95,21 +95,33 @@ func (repo *Repository) ListQuantities(ctx context.Context, ids *[]string) ([]*m
 				q.container_id,
 				q.component_id,
 				q.created_at,
-				q.quantity
+				q.amount
 			FROM
 				quantity q
 			WHERE
 				$1::uuid[] IS NULL
 				OR ($1::uuid[] IS NOT NULL AND q.quantity_id = ANY ($1::uuid[]))
+		),
+		relevant_quantity_changes AS (
+			SELECT
+				rq.quantity_id,
+				array_agg(qc.quantity_change_id) AS quantity_changes
+			FROM
+				relevant_quantities rq
+				JOIN quantity_change qc USING (quantity_id)
+			GROUP BY
+				rq.quantity_id
 		)
 		SELECT
 			rq.quantity_id,
 			rq.container_id,
 			rq.component_id,
 			rq.created_at,
-			rq.quantity
+			rq.amount,
+			COALESCE(rqc.quantity_changes, ARRAY[]::uuid[]) AS quantity_changes
 		FROM
 			relevant_quantities rq
+			LEFT JOIN relevant_quantity_changes rqc USING (quantity_id)
 	`
 
 	rows, _ := repo.pool.Query(ctx, sql, ids)
