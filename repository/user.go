@@ -3,9 +3,12 @@ package repository
 import (
 	"context"
 	"parts/graph/model"
+	"strings"
 
 	"github.com/randallmlough/pgxscan"
 )
+
+var userTagMap = tagMap(&model.User{})
 
 func (repo *Repository) UpsertUser(ctx context.Context, input model.NewUser) (*model.User, error) {
 	sql := `
@@ -66,7 +69,7 @@ func (repo *Repository) UpsertUser(ctx context.Context, input model.NewUser) (*m
 	return dst, nil
 }
 
-func (repo *Repository) ListUsers(ctx context.Context, ids *[]string) ([]*model.User, error) {
+func (repo *Repository) ListUsers(ctx context.Context, ids *[]string, sort []*model.UserSort) ([]*model.User, error) {
 	sql := `
 		SELECT
 			user_id,
@@ -80,7 +83,18 @@ func (repo *Repository) ListUsers(ctx context.Context, ids *[]string) ([]*model.
 			OR ($1::uuid[] IS NOT NULL AND user_id = ANY ($1::uuid[]))
 	`
 
-	rows, _ := repo.pool.Query(ctx, sql, ids)
+	var ordering = ""
+	if sort != nil {
+		str := []string{}
+		for i := 0; i < len(sort); i++ {
+			field := sort[i].Field.String()
+			order := sort[i].Order.String()
+			str = append(str, userTagMap[field]+" "+order)
+		}
+		ordering = "\nORDER BY " + strings.Join(str, ", ")
+	}
+
+	rows, _ := repo.pool.Query(ctx, sql+ordering, ids)
 
 	var dst []*model.User
 	if err := pgxscan.NewScanner(rows, pgxscan.ErrNoRowsQuery(false)).Scan(&dst); err != nil {

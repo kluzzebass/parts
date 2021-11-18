@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 )
@@ -24,4 +25,18 @@ func Create() (*Repository, error) {
 	fmt.Println("Connected to database")
 
 	return &Repository{pool: pool}, err
+}
+
+// Usage: tagMap(&model.User{})
+func tagMap(v interface{}) map[string]string {
+	m := make(map[string]string)
+
+	r := reflect.TypeOf(v).Elem()
+	for i := 0; i < r.NumField(); i++ {
+		json := r.Field(i).Tag.Get("json")
+		db := r.Field(i).Tag.Get("db")
+		m[json] = db
+	}
+
+	return m
 }

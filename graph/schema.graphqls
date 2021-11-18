@@ -2,11 +2,12 @@
 #
 # https://gqlgen.com/getting-started/
 
+
 scalar Time
 
 type Query {
   tenants(id: ID): [Tenant!]!
-  users(id: ID): [User!]!
+  users(id: [ID!], sort: [UserSort!]): [User!]!
   containerTypes(id: ID): [ContainerType!]!
   componentTypes(id: ID): [ComponentType!]!
   containers(id: ID): [Container!]!
@@ -136,3 +137,25 @@ type QuantityChange {
   createdAt: Time!
   amount: Int!
 }
+
+
+
+
+
+
+enum SortOrder {
+  ASC
+  DESC
+}
+
+enum UserSortableField {
+  tenantId
+  createdAt
+  name
+}
+
+input UserSort {
+  field: UserSortableField
+  order: SortOrder = ASC
+}
+

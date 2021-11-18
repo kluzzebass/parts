@@ -9,6 +9,6 @@ func (s *Service) UpsertUser(ctx context.Context, input model.NewUser) (*model.U
 	return s.repo.UpsertUser(ctx, input)
 }
 
-func (s *Service) ListUsers(ctx context.Context, ids *[]string) ([]*model.User, error) {
-	return s.repo.ListUsers(ctx, ids)
+func (s *Service) ListUsers(ctx context.Context, ids *[]string, sort []*model.UserSort) ([]*model.User, error) {
+	return s.repo.ListUsers(ctx, ids, sort)
 }

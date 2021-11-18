@@ -2,6 +2,12 @@
 
 package model
 
+import (
+	"fmt"
+	"io"
+	"strconv"
+)
+
 type NewComponent struct {
 	ID              *string `json:"id"`
 	TenantID        string  `json:"tenantId"`
@@ -45,4 +51,95 @@ type NewUser struct {
 	ID       *string `json:"id"`
 	TenantID string  `json:"tenantId"`
 	Name     string  `json:"name"`
+}
+
+type UserSort struct {
+	Field *UserSortableField `json:"field"`
+	Order *SortOrder         `json:"order"`
+}
+
+type SortOrder string
+
+const (
+	SortOrderAsc  SortOrder = "ASC"
+	SortOrderDesc SortOrder = "DESC"
+)
+
+var AllSortOrder = []SortOrder{
+	SortOrderAsc,
+	SortOrderDesc,
+}
+
+func (e SortOrder) IsValid() bool {
+	switch e {
+	case SortOrderAsc, SortOrderDesc:
+		return true
+	}
+	return false
+}
+
+func (e SortOrder) String() string {
+	return string(e)
+}
+
+func (e *SortOrder) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SortOrder(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SortOrder", str)
+	}
+	return nil
+}
+
+func (e SortOrder) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type UserSortableField string
+
+const (
+	UserSortableFieldID        UserSortableField = "id"
+	UserSortableFieldTenantID  UserSortableField = "tenantId"
+	UserSortableFieldCreatedAt UserSortableField = "createdAt"
+	UserSortableFieldName      UserSortableField = "name"
+)
+
+var AllUserSortableField = []UserSortableField{
+	UserSortableFieldID,
+	UserSortableFieldTenantID,
+	UserSortableFieldCreatedAt,
+	UserSortableFieldName,
+}
+
+func (e UserSortableField) IsValid() bool {
+	switch e {
+	case UserSortableFieldID, UserSortableFieldTenantID, UserSortableFieldCreatedAt, UserSortableFieldName:
+		return true
+	}
+	return false
+}
+
+func (e UserSortableField) String() string {
+	return string(e)
+}
+
+func (e *UserSortableField) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = UserSortableField(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid UserSortableField", str)
+	}
+	return nil
+}
+
+func (e UserSortableField) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }

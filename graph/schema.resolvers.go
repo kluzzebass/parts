@@ -232,13 +232,8 @@ func (r *queryResolver) Tenants(ctx context.Context, id *string) ([]*model.Tenan
 	return r.Svc.ListTenants(ctx, ids)
 }
 
-func (r *queryResolver) Users(ctx context.Context, id *string) ([]*model.User, error) {
-	var ids *[]string
-
-	if id != nil {
-		ids = &[]string{*id}
-	}
-	return r.Svc.ListUsers(ctx, ids)
+func (r *queryResolver) Users(ctx context.Context, id []string, sort []*model.UserSort) ([]*model.User, error) {
+	return r.Svc.ListUsers(ctx, &id, sort)
 }
 
 func (r *queryResolver) ContainerTypes(ctx context.Context, id *string) ([]*model.ContainerType, error) {
@@ -296,7 +291,7 @@ func (r *queryResolver) QuantityChanges(ctx context.Context, id *string) ([]*mod
 }
 
 func (r *tenantResolver) Users(ctx context.Context, obj *model.Tenant) ([]*model.User, error) {
-	return r.Svc.ListUsers(ctx, &obj.UserIDs)
+	return r.Svc.ListUsers(ctx, &obj.UserIDs, nil)
 }
 
 func (r *tenantResolver) ContainerTypes(ctx context.Context, obj *model.Tenant) ([]*model.ContainerType, error) {
